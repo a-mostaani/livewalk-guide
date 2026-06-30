@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Stat, colors } from '../components/Primitives';
-import { incomingRequest } from '../data/mock';
+import { MarketplaceRequest } from '../api';
 
 const checklistItems = [
   'I am at the public starting point',
@@ -12,26 +12,26 @@ const checklistItems = [
   'Traveler language and interests reviewed',
 ];
 
-export function ChecklistScreen({ onStartStream }: { onStartStream: () => void }) {
+export function ChecklistScreen({ request, onStartStream }: { request?: MarketplaceRequest; onStartStream: () => void }) {
   const [checked, setChecked] = useState<string[]>([checklistItems[0], checklistItems[2]]);
   const toggle = (item: string) => setChecked((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const readyCount = checked.length;
 
   return (
     <View>
-      <Header kicker="Confirmed trip" title="Run the pre-walk checklist." body="Before a live traveler joins, guides need a fast readiness screen for location, battery, network, and route context." />
+      <Header kicker="Confirmed trip" title="Run the pre-walk checklist." body="Starting the stream updates the shared session status so the traveler APK can enter the same live room." />
       <Card style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.icon}><Ionicons name="calendar" size={26} color={colors.white} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroTitle}>{incomingRequest.route}</Text>
-            <Text style={styles.heroSub}>{incomingRequest.scheduledTime} • {incomingRequest.language}</Text>
+            <Text style={styles.heroTitle}>{request?.route ?? 'No accepted request selected'}</Text>
+            <Text style={styles.heroSub}>{request?.scheduledTime ?? '—'} • {request?.language ?? '—'}</Text>
           </View>
         </View>
         <View style={styles.stats}>
-          <Stat label="Payout" value={`$${incomingRequest.payout}`} tone="dark" />
+          <Stat label="Payout" value="$32" tone="dark" />
           <Stat label="Ready" value={`${readyCount}/5`} tone="dark" />
-          <Stat label="Duration" value={incomingRequest.estimatedDuration} tone="dark" />
+          <Stat label="Duration" value={request?.duration ?? '—'} tone="dark" />
         </View>
       </Card>
       <Card style={styles.checkCard}>
@@ -46,10 +46,10 @@ export function ChecklistScreen({ onStartStream }: { onStartStream: () => void }
         })}
       </Card>
       <Card style={styles.reminderCard}>
-        <Text style={styles.reminderTitle}>Broadcast reminders</Text>
-        <Text style={styles.reminderText}>Keep the traveler informed, narrate turns before making them, avoid filming private homes closely, and use pause if someone asks not to be filmed.</Text>
+        <Text style={styles.reminderTitle}>Shared session ready</Text>
+        <Text style={styles.reminderText}>The accepted booking has session id {request?.sessionId ?? '—'}. Starting live writes the shared state for both APKs.</Text>
       </Card>
-      <Button label="Start mock stream" icon="videocam" onPress={onStartStream} style={{ marginTop: 18 }} />
+      <Button label="Start shared live session" icon="videocam" onPress={onStartStream} style={{ marginTop: 18 }} />
     </View>
   );
 }

@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { API_BASE, acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, MarketplaceRequest, sendSessionMessage, SessionMessage, startSession } from './src/api';
 import { Button, colors } from './src/components/Primitives';
 import { ChecklistScreen } from './src/screens/ChecklistScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -32,6 +33,12 @@ const screenLabels: Record<Screen, string> = {
 export default function App() {
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [online, setOnline] = useState(true);
+  const [apiOnline, setApiOnline] = useState(false);
+  const [apiNote, setApiNote] = useState('Checking backend…');
+  const [pendingRequests, setPendingRequests] = useState<MarketplaceRequest[]>([]);
+  const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
+  const [messages, setMessages] = useState<SessionMessage[]>([]);
+  const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const currentIndex = screenOrder.indexOf(screen);
@@ -43,14 +50,85 @@ export default function App() {
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   };
 
-  const goPrevious = () => {
-    if (!isFirstScreen) {
-      navigateTo(screenOrder[currentIndex - 1]);
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        await health();
+        if (!active) return;
+        setApiOnline(true);
+        setApiNote('Backend connected');
+        if (online) {
+          const data = await listPendingRequests();
+          if (!active) return;
+          setPendingRequests(data.requests);
+        }
+        if (activeRequest?.sessionId) {
+          try {
+            const session = await getSessionStatus(activeRequest.sessionId);
+            if (active) setMessages(session.messages);
+          } catch {}
+        }
+      } catch {
+        if (!active) return;
+        setApiOnline(false);
+        setApiNote('Backend reconnecting');
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 2000);
+    return () => { active = false; clearInterval(timer); };
+  }, [online, activeRequest?.sessionId]);
+
+  const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
+  const goNext = () => { navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]); };
+
+  const viewRequest = () => {
+    setActiveRequest(pendingRequests[0]);
+    navigateTo('request');
+  };
+
+  const acceptActiveRequest = async () => {
+    if (!activeRequest) return;
+    setBusy(true);
+    try {
+      const data = await acceptRequest(activeRequest.id);
+      setActiveRequest(data.request);
+      setMessages([]);
+      navigateTo('route');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const goNext = () => {
-    navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]);
+  const declineActiveRequest = async () => {
+    if (!activeRequest) return;
+    setBusy(true);
+    try {
+      await declineRequest(activeRequest.id);
+      setActiveRequest(undefined);
+      navigateTo('dashboard');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startLive = async () => {
+    if (activeRequest?.sessionId) {
+      try {
+        const data = await startSession(activeRequest.sessionId);
+        setMessages(data.messages);
+        setActiveRequest({ ...activeRequest, status: 'live' });
+      } catch {}
+    }
+    navigateTo('live');
+  };
+
+  const sendGuideMessage = async (text: string) => {
+    if (!activeRequest?.sessionId) return;
+    await sendSessionMessage(activeRequest.sessionId, text);
+    const data = await getSessionStatus(activeRequest.sessionId);
+    setMessages(data.messages);
   };
 
   return (
@@ -59,57 +137,37 @@ export default function App() {
         <StatusBar style="dark" />
         <View style={styles.appShell}>
           <View style={styles.appHeader}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go to Start page"
-              hitSlop={10}
-              onPress={() => navigateTo('onboarding')}
-              style={({ pressed }) => [styles.logoMini, pressed && styles.pressed]}
-            >
+            <Pressable accessibilityRole="button" accessibilityLabel="Go to Start page" hitSlop={10} onPress={() => navigateTo('onboarding')} style={({ pressed }) => [styles.logoMini, pressed && styles.pressed]}>
               <Ionicons name="walk" size={17} color={colors.white} />
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.headerTitle}>LiveWalk Guide MVP</Text>
-              <Text style={styles.headerSub}>Android-ready Expo prototype</Text>
+              <Text style={styles.headerSub}>Shared backend booking cycle</Text>
             </View>
-            <Text style={styles.stepCount}>{currentIndex + 1}/{screenOrder.length}</Text>
+            <View style={[styles.statusPill, apiOnline ? styles.statusPillOnline : styles.statusPillOffline]}>
+              <View style={[styles.statusDot, apiOnline && styles.statusDotOnline]} />
+              <Text style={styles.statusText}>{apiOnline ? 'Live' : 'Sync'}</Text>
+            </View>
           </View>
+          <Text style={styles.backendLine} numberOfLines={1}>{apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
           <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
               return (
-                <Pressable
-                  key={item}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`Open ${screenLabels[item]} step`}
-                  hitSlop={6}
-                  onPress={() => navigateTo(item)}
-                  style={({ pressed }) => [styles.stepItem, pressed && styles.stepItemPressed]}
-                >
+                <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={`Open ${screenLabels[item]} step`} hitSlop={6} onPress={() => navigateTo(item)} style={({ pressed }) => [styles.stepItem, pressed && styles.stepItemPressed]}>
                   <View style={[styles.stepDot, index <= currentIndex && styles.stepDotActive]} />
-                  <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>
-                    {screenLabels[item]}
-                  </Text>
+                  <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>{screenLabels[item]}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <ScrollView
-            ref={scrollRef}
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            contentInsetAdjustmentBehavior="automatic"
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-          >
+          <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator>
             {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
-            {screen === 'dashboard' ? <DashboardScreen online={online} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={() => navigateTo('request')} /> : null}
-            {screen === 'request' ? <IncomingRequestScreen onAccept={() => navigateTo('route')} /> : null}
-            {screen === 'route' ? <RouteDetailsScreen onContinue={() => navigateTo('checklist')} /> : null}
-            {screen === 'checklist' ? <ChecklistScreen onStartStream={() => navigateTo('live')} /> : null}
-            {screen === 'live' ? <LiveBroadcastScreen onEnd={() => navigateTo('earnings')} /> : null}
+            {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
+            {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
+            {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
+            {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onStartStream={startLive} /> : null}
+            {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
             {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
             {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
             {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
@@ -129,13 +187,19 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   appShell: { flex: 1, backgroundColor: colors.cream },
-  appHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 12 },
+  appHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6 },
   logoMini: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.68 },
   headerCopy: { flex: 1, minWidth: 0 },
   headerTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
   headerSub: { color: colors.muted, fontWeight: '700', fontSize: 12, marginTop: 1 },
-  stepCount: { color: colors.gold, fontWeight: '900' },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },
+  statusPillOnline: { backgroundColor: '#EAF7F2', borderColor: '#BDE8DC' },
+  statusPillOffline: { backgroundColor: '#FFF8EA', borderColor: '#F2DCA8' },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
+  statusDotOnline: { backgroundColor: colors.green },
+  statusText: { color: colors.ink, fontWeight: '900', fontSize: 11 },
+  backendLine: { color: colors.muted, fontSize: 11, fontWeight: '700', paddingHorizontal: 18, paddingBottom: 7 },
   stepper: { flexDirection: 'row', paddingHorizontal: 8, paddingBottom: 8, gap: 2 },
   stepItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 11 },
   stepItemPressed: { backgroundColor: 'rgba(6,24,38,0.06)' },
@@ -146,15 +210,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28 },
   bottomSafeArea: { backgroundColor: colors.cream },
-  bottomNav: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(6,24,38,0.08)',
-    backgroundColor: 'rgba(251,247,239,0.98)',
-  },
+  bottomNav: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10, borderTopWidth: 1, borderTopColor: 'rgba(6,24,38,0.08)', backgroundColor: 'rgba(251,247,239,0.98)' },
   navButton: { flex: 1 },
 });

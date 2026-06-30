@@ -52,3 +52,16 @@ This MVP covers only the guide side of LiveWalk. Traveler apps, marketplace disp
 - All data is mocked locally so the user can click through the guide journey without a backend.
 - Guide tags are modeled as two groups: specialties describe what the guide is best at, while target groups describe who the guide is best suited to serve. The MVP shows these tags in dashboard/profile surfaces and uses them to explain incoming-request fit.
 - Native maps, live video, payments, notifications, accounts, guide verification, and dispatch are intentionally deferred.
+
+## Shared backend booking cycle added
+- The guide dashboard now polls `https://rendezvous-livewalk-api.webpeter.com` for pending traveler requests every 2 seconds.
+- Pending requests come from the traveler APK, not local mock state.
+- Accepting a request updates the shared booking to confirmed and creates a live session room.
+- Starting the stream marks the shared session live and both APKs can exchange basic status/messages.
+
+## End-to-end APK test
+1. Open the Traveler APK and submit a request.
+2. Open the Guide APK dashboard; the pending count should update.
+3. Tap **View live request**, then **Accept**.
+4. The Traveler APK should confirm the booking within roughly 2 seconds.
+5. Start/join the shared session and exchange a quick message.

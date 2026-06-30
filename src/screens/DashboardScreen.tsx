@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { guideProfile } from '../data/mock';
 
-export function DashboardScreen({ online, onToggleOnline, onViewRequest }: { online: boolean; onToggleOnline: () => void; onViewRequest: () => void }) {
+export function DashboardScreen({ online, pendingCount = 0, onToggleOnline, onViewRequest }: { online: boolean; pendingCount?: number; onToggleOnline: () => void; onViewRequest: () => void }) {
   return (
     <View>
       <Header
@@ -22,7 +22,7 @@ export function DashboardScreen({ online, onToggleOnline, onViewRequest }: { onl
         </View>
         <View style={styles.signalRow}>
           <View style={[styles.signalDot, online && styles.signalDotOnline]} />
-          <Text style={styles.signalText}>{online ? 'Receiving mocked traveler requests' : 'Not visible to travelers'}</Text>
+          <Text style={styles.signalText}>{online ? 'Receiving live traveler requests' : 'Not visible to travelers'}</Text>
         </View>
       </Card>
       <Card style={styles.profileCard}>
@@ -59,11 +59,11 @@ export function DashboardScreen({ online, onToggleOnline, onViewRequest }: { onl
       <Card style={styles.requestTeaser}>
         <View style={styles.requestIcon}><Ionicons name="notifications" size={24} color={colors.white} /></View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.requestTitle}>Incoming request ready</Text>
-          <Text style={styles.requestBody}>Preview the traveler card, accept/decline actions, and route details.</Text>
+          <Text style={styles.requestTitle}>{pendingCount > 0 ? `${pendingCount} live request${pendingCount === 1 ? '' : 's'} waiting` : 'No live requests yet'}</Text>
+          <Text style={styles.requestBody}>{pendingCount > 0 ? 'Open the newest traveler request from the shared backend.' : 'Create a request in the traveler APK, then it appears here.'}</Text>
         </View>
       </Card>
-      <Button label="View incoming request" icon="radio" onPress={onViewRequest} style={{ marginTop: 18 }} />
+      <Button label={pendingCount > 0 ? "View live request" : "Waiting for request"} icon="radio" onPress={onViewRequest} disabled={pendingCount === 0} style={{ marginTop: 18 }} />
     </View>
   );
 }

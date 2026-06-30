@@ -1,68 +1,55 @@
-import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap } from '../components/GuideVisuals';
-import { incomingRequest } from '../data/mock';
+import { MarketplaceRequest } from '../api';
 
-export function IncomingRequestScreen({ onAccept }: { onAccept: () => void }) {
-  const [decision, setDecision] = useState<'new' | 'declined' | 'accepted'>('new');
+export function IncomingRequestScreen({ request, busy = false, onAccept, onDecline }: { request?: MarketplaceRequest; busy?: boolean; onAccept: () => void; onDecline: () => void }) {
+  if (!request) {
+    return (
+      <View>
+        <Header kicker="Incoming request" title="No live traveler request selected." body="Create a request in the traveler APK, then return to the dashboard to open it here." />
+        <Card style={styles.decisionBanner}><Text style={styles.decisionText}>The guide app is connected to the shared backend and polling for pending requests.</Text></Card>
+      </View>
+    );
+  }
 
   return (
     <View>
-      <Header kicker="Incoming request" title="A traveler wants a live walk nearby." body="Review the route, distance, interests, language, timing, and payout before accepting." />
+      <Header kicker="Incoming request" title="A traveler wants a live walk nearby." body="This card came from the traveler APK through the shared backend." />
       <Card style={styles.heroCard}>
         <View style={styles.travelerTop}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>SR</Text></View>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{request.travelerName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.travelerName}>{incomingRequest.travelerName}</Text>
-            <Text style={styles.travelerMeta}>{incomingRequest.travelerCountry} • {incomingRequest.scheduledTime}</Text>
+            <Text style={styles.travelerName}>{request.travelerName}</Text>
+            <Text style={styles.travelerMeta}>{request.scheduledTime} • {request.id}</Text>
           </View>
-          <Text style={styles.payout}>${incomingRequest.payout}</Text>
+          <Text style={styles.payout}>$32</Text>
         </View>
-        <Text style={styles.route}>{incomingRequest.route}</Text>
+        <Text style={styles.route}>{request.route}</Text>
         <View style={styles.stats}>
-          <Stat label="Distance" value={`${incomingRequest.distanceKm} km`} />
-          <Stat label="Duration" value={incomingRequest.estimatedDuration} />
-          <Stat label="Language" value={incomingRequest.language} />
+          <Stat label="Status" value={request.status} />
+          <Stat label="Duration" value={request.duration} />
+          <Stat label="Language" value={request.language} />
         </View>
-        <View style={styles.pills}>
-          {incomingRequest.interests.map((interest) => <Pill key={interest} label={interest} selected />)}
-        </View>
+        <View style={styles.pills}>{request.interests.map((interest) => <Pill key={interest} label={interest} selected />)}</View>
         <View style={styles.matchBanner}>
           <Ionicons name="sparkles" size={20} color={colors.gold} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.matchTitle}>Good match: {incomingRequest.specialtyMatch} + {incomingRequest.targetGroupMatch}</Text>
-            <Text style={styles.matchBody}>Traveler needs align with your guide specialty and target-group tags.</Text>
+            <Text style={styles.matchTitle}>Good demo match: English + local stories</Text>
+            <Text style={styles.matchBody}>Accepting updates the traveler APK to confirmed and creates the shared session room.</Text>
           </View>
         </View>
       </Card>
       <GuideRouteMap compact />
       <View style={styles.decisionBanner}>
-        <Ionicons name={decision === 'declined' ? 'close-circle' : decision === 'accepted' ? 'checkmark-circle' : 'time'} size={20} color={decision === 'declined' ? colors.danger : decision === 'accepted' ? colors.green : colors.gold} />
-        <Text style={styles.decisionText}>{decision === 'declined' ? 'Mock declined. Use Next to continue testing.' : decision === 'accepted' ? 'Mock accepted. Route details are ready.' : 'Accepting unlocks route details and the pre-walk checklist.'}</Text>
+        <Ionicons name="sync" size={20} color={colors.green} />
+        <Text style={styles.decisionText}>Accept or decline is posted to the backend immediately.</Text>
       </View>
       <View style={styles.actions}>
-        <Button
-          label="Decline"
-          icon="close"
-          variant="secondary"
-          onPress={() => {
-            setDecision('declined');
-            Alert.alert('Request declined', 'Mock decline state only. No traveler was notified.');
-          }}
-          style={{ flex: 1 }}
-        />
-        <Button
-          label="Accept"
-          icon="checkmark"
-          variant="success"
-          onPress={() => {
-            setDecision('accepted');
-            onAccept();
-          }}
-          style={{ flex: 1 }}
-        />
+        <Button label={busy ? 'Declining…' : 'Decline'} icon="close" variant="secondary" onPress={onDecline} disabled={busy} style={{ flex: 1 }} />
+        <Button label={busy ? 'Accepting…' : 'Accept'} icon="checkmark" variant="success" onPress={onAccept} disabled={busy} style={{ flex: 1 }} />
       </View>
     </View>
   );
