@@ -3,8 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { API_BASE, acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, MarketplaceRequest, sendSessionMessage, SessionMessage, startSession } from './src/api';
+import { API_BASE, acceptRequest, AuthPayload, AuthUser, declineRequest, getSessionStatus, health, listPendingRequests, loginAccount, MarketplaceRequest, registerAccount, sendSessionMessage, SessionMessage, setAuthToken, startSession } from './src/api';
 import { Button, colors } from './src/components/Primitives';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { ChecklistScreen } from './src/screens/ChecklistScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { EarningsScreen } from './src/screens/EarningsScreen';
@@ -39,6 +40,9 @@ export default function App() {
   const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authUser, setAuthUser] = useState<AuthUser | undefined>();
   const scrollRef = useRef<ScrollView>(null);
 
   const currentIndex = screenOrder.indexOf(screen);
@@ -51,6 +55,11 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!authUser) {
+      setApiOnline(false);
+      setApiNote('Log in to connect backend');
+      return;
+    }
     let active = true;
     const poll = async () => {
       try {
@@ -78,7 +87,7 @@ export default function App() {
     poll();
     const timer = setInterval(poll, 2000);
     return () => { active = false; clearInterval(timer); };
-  }, [online, activeRequest?.sessionId]);
+  }, [authUser, online, activeRequest?.sessionId]);
 
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
   const goNext = () => { navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]); };
@@ -133,6 +142,21 @@ export default function App() {
     setMessages(data.messages);
   };
 
+  const handleAuth = async (mode: 'register' | 'login', payload: AuthPayload) => {
+    setAuthBusy(true);
+    setAuthError('');
+    try {
+      const data = mode === 'register' ? await registerAccount(payload) : await loginAccount(payload);
+      setAuthToken(data.token);
+      setAuthUser(data.user);
+      setScreen('dashboard');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Authentication failed');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -151,8 +175,8 @@ export default function App() {
               <Text style={styles.statusText}>{apiOnline ? 'Live' : 'Sync'}</Text>
             </View>
           </View>
-          <Text style={styles.backendLine} numberOfLines={1}>{apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
-          <View style={styles.stepper}>
+          <Text style={styles.backendLine} numberOfLines={1}>{authUser ? `${authUser.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
+          {authUser ? <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
               return (
@@ -162,24 +186,30 @@ export default function App() {
                 </Pressable>
               );
             })}
-          </View>
+          </View> : null}
           <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator>
-            {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
-            {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
-            {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
-            {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
-            {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onStartStream={startLive} /> : null}
-            {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
-            {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
-            {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
-            {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
+            {!authUser ? (
+              <AuthScreen busy={authBusy} error={authError} onSubmit={handleAuth} />
+            ) : (
+              <>
+                {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
+                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
+                {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
+                {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
+                {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onStartStream={startLive} /> : null}
+                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
+                {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
+                {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
+                {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
+              </>
+            )}
           </ScrollView>
-          <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
+          {authUser ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
             <View style={styles.bottomNav}>
               <Button label="Previous" icon="chevron-back" variant="secondary" onPress={goPrevious} disabled={isFirstScreen} style={styles.navButton} />
               <Button label={isLastScreen ? 'Dashboard' : 'Next'} icon={isLastScreen ? 'speedometer' : 'chevron-forward'} onPress={goNext} style={styles.navButton} />
             </View>
-          </SafeAreaView>
+          </SafeAreaView> : null}
         </View>
       </SafeAreaView>
     </SafeAreaProvider>

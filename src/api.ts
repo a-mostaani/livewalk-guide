@@ -19,15 +19,39 @@ export type MarketplaceRequest = {
 };
 export type LiveSession = { id: string; requestId: string; status: 'ready' | 'live'; startedAt?: string | null; location?: { label?: string; progress?: number } | null };
 export type SessionMessage = { id: string; sessionId: string; senderRole: string; senderName: string; text: string; createdAt: string };
+export type AuthUser = { id: string; email: string; name: string; role: 'traveler' | 'guide'; createdAt: string };
+export type AuthPayload = { name?: string; email: string; password: string };
+
+let authToken = '';
+export function setAuthToken(token: string) { authToken = token; }
+export function clearAuthToken() { authToken = ''; }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers || {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(init?.headers || {}),
+    },
   });
   const data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || `API ${response.status}`);
   return data;
+}
+
+export async function registerAccount(payload: AuthPayload) {
+  return api<{ ok: true; user: AuthUser; token: string }>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, role: 'guide' }),
+  });
+}
+
+export async function loginAccount(payload: AuthPayload) {
+  return api<{ ok: true; user: AuthUser; token: string }>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function health() {
