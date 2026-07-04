@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { guideProfile } from '../data/mock';
@@ -56,13 +56,22 @@ export function DashboardScreen({ online, pendingCount = 0, onToggleOnline, onVi
         <Stat label="Today" value={guideProfile.todayEarnings} />
         <Stat label="Response" value={guideProfile.responseTime} />
       </View>
-      <Card style={styles.requestTeaser}>
-        <View style={styles.requestIcon}><Ionicons name="notifications" size={24} color={colors.white} /></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.requestTitle}>{pendingCount > 0 ? `${pendingCount} live request${pendingCount === 1 ? '' : 's'} waiting` : 'No live requests yet'}</Text>
-          <Text style={styles.requestBody}>{pendingCount > 0 ? 'Open the newest traveler request from the shared backend.' : 'Create a request in the traveler APK, then it appears here.'}</Text>
-        </View>
-      </Card>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={pendingCount > 0 ? 'Open newest live request' : 'No live requests available'}
+        disabled={pendingCount === 0}
+        onPress={onViewRequest}
+        style={({ pressed }) => [pendingCount === 0 && styles.requestDisabled, pressed && styles.requestPressed]}
+      >
+        <Card style={[styles.requestTeaser, pendingCount > 0 && styles.requestTeaserActive]}>
+          <View style={styles.requestIcon}><Ionicons name="notifications" size={24} color={colors.white} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.requestTitle}>{pendingCount > 0 ? `${pendingCount} live request${pendingCount === 1 ? '' : 's'} waiting` : 'No live requests yet'}</Text>
+            <Text style={styles.requestBody}>{pendingCount > 0 ? 'Tap this card or the button below to open the newest traveler request.' : 'Create a request in the traveler APK, then it appears here.'}</Text>
+          </View>
+          {pendingCount > 0 ? <Ionicons name="chevron-forward" size={22} color={colors.ink} /> : null}
+        </Card>
+      </Pressable>
       <Button label={pendingCount > 0 ? "View live request" : "Waiting for request"} icon="radio" onPress={onViewRequest} disabled={pendingCount === 0} style={{ marginTop: 18 }} />
     </View>
   );
@@ -89,7 +98,10 @@ const styles = StyleSheet.create({
   tagSection: { marginTop: 2 },
   tagLabel: { color: colors.muted, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11, marginTop: 12 },
   stats: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  requestPressed: { transform: [{ scale: 0.99 }] },
+  requestDisabled: { opacity: 0.75 },
   requestTeaser: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  requestTeaserActive: { borderColor: colors.gold, backgroundColor: '#FFF8EA' },
   requestIcon: { width: 54, height: 54, borderRadius: 20, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
   requestTitle: { color: colors.ink, fontWeight: '900', fontSize: 17 },
   requestBody: { color: colors.muted, lineHeight: 19, marginTop: 3 },

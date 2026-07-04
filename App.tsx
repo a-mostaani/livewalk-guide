@@ -84,7 +84,9 @@ export default function App() {
   const goNext = () => { navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]); };
 
   const viewRequest = () => {
-    setActiveRequest(pendingRequests[0]);
+    const newestRequest = pendingRequests[0];
+    if (!newestRequest) return;
+    setActiveRequest(newestRequest);
     navigateTo('request');
   };
 

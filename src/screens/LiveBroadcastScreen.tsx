@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
 import { Button, Card, colors } from '../components/Primitives';
@@ -17,19 +17,42 @@ export function LiveBroadcastScreen({
   onSendMessage: (text: string) => Promise<void>;
   onEnd: () => void;
 }) {
-  const [muted, setMuted] = useState(false);
+  const [talking, setTalking] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [actionNote, setActionNote] = useState('Hold to talk sends guide voice-status events to the traveler.');
+  const sessionReady = Boolean(request?.sessionId);
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
   );
 
-  const sendReply = async () => {
+  const sendSessionEvent = async (text: string, success: string) => {
+    if (!sessionReady) {
+      setActionNote('Controls unlock after the shared session starts.');
+      Alert.alert('Session not ready', 'Start the shared live session first.');
+      return;
+    }
     try {
-      await onSendMessage('I’ll slow down at the next corner.');
+      await onSendMessage(text);
+      setActionNote(success);
     } catch {
+      setActionNote('Not sent yet — the shared session is not ready.');
       Alert.alert('Message not sent', 'The shared session is not ready yet.');
     }
+  };
+
+  const sendReply = () => sendSessionEvent('Guide message: I’ll slow down at the next corner.', 'Message sent to the traveler.');
+
+  const startTalking = () => {
+    if (!sessionReady) return;
+    setTalking(true);
+    void sendSessionEvent('🎙️ Guide is holding to talk.', 'Talk status sent to the traveler.');
+  };
+
+  const stopTalking = () => {
+    if (!talking) return;
+    setTalking(false);
+    void sendSessionEvent('🎙️ Guide finished talking.', 'Talk status ended.');
   };
 
   return (
@@ -59,11 +82,21 @@ export function LiveBroadcastScreen({
           <Text style={styles.statusText}>{paused ? 'Stream paused locally' : 'Shared session active for traveler'}</Text>
         </View>
         <View style={styles.controlGrid}>
-          <Button label={muted ? 'Unmute' : 'Mute'} icon={muted ? 'mic-off' : 'mic'} variant={muted ? 'primary' : 'secondary'} onPress={() => setMuted((value) => !value)} style={styles.controlButton} />
-          <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} style={styles.controlButton} />
-          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={() => setPaused((value) => !value)} style={styles.controlButton} />
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPressIn={startTalking}
+            onPressOut={stopTalking}
+            disabled={!sessionReady}
+            style={[styles.holdButton, talking && styles.holdButtonActive, !sessionReady && styles.controlDisabled, styles.controlButton]}
+          >
+            <Ionicons name={talking ? 'mic' : 'mic-outline'} size={18} color={talking ? colors.white : colors.ink} />
+            <Text style={[styles.holdButtonText, talking && styles.holdButtonTextActive]}>{talking ? 'Talking…' : 'Hold to talk'}</Text>
+          </TouchableOpacity>
+          <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} disabled={!sessionReady} style={styles.controlButton} />
+          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={() => setPaused((value) => !value)} disabled={!sessionReady} style={styles.controlButton} />
           <Button label="End walk" icon="stop-circle" variant="danger" onPress={onEnd} style={styles.controlButton} />
         </View>
+        <Text style={styles.actionNote}>{sessionReady ? actionNote : 'Controls unlock after the shared live session starts.'}</Text>
       </Card>
       <Card style={styles.panel}>
         <View style={styles.panelHeader}>
@@ -116,6 +149,23 @@ const styles = StyleSheet.create({
   statusText: { color: colors.muted, fontWeight: '800' },
   controlGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   controlButton: { flexBasis: '47%', flexGrow: 1 },
+  holdButton: {
+    minHeight: 48,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  holdButtonActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  holdButtonText: { color: colors.ink, fontWeight: '800', fontSize: 15 },
+  holdButtonTextActive: { color: colors.white },
+  controlDisabled: { opacity: 0.45 },
+  actionNote: { color: colors.muted, fontWeight: '700', lineHeight: 19, marginTop: 12 },
   panel: { marginTop: 14 },
   panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12 },
   panelTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
