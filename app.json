@@ -18,6 +18,7 @@
     "android": {
       "package": "com.livewalk.guide"
     },
-    "scheme": "livewalk-guide"
+    "scheme": "livewalk-guide",
+    "newArchEnabled": false
   }
 }
