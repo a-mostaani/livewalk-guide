@@ -16,10 +16,12 @@ export function ChecklistScreen({ request, onStartStream }: { request?: Marketpl
   const [checked, setChecked] = useState<string[]>([checklistItems[0], checklistItems[2]]);
   const toggle = (item: string) => setChecked((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const readyCount = checked.length;
+  const missingItems = checklistItems.filter((item) => !checked.includes(item));
+  const allChecked = missingItems.length === 0;
 
   return (
     <View>
-      <Header kicker="Confirmed trip" title="Run the pre-walk checklist." body="Starting the stream updates the shared session status so the traveler APK can enter the same live room." />
+      <Header kicker="Confirmed trip" title="Run the pre-walk checklist." body="Complete every readiness check to unlock the shared live session." />
       <Card style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.icon}><Ionicons name="calendar" size={26} color={colors.white} /></View>
@@ -45,11 +47,21 @@ export function ChecklistScreen({ request, onStartStream }: { request?: Marketpl
           );
         })}
       </Card>
-      <Card style={styles.reminderCard}>
-        <Text style={styles.reminderTitle}>Shared session ready</Text>
-        <Text style={styles.reminderText}>The accepted booking has session id {request?.sessionId ?? '—'}. Starting live writes the shared state for both APKs.</Text>
+      <Card style={[styles.reminderCard, allChecked && styles.readyCard]}>
+        <Text style={styles.reminderTitle}>{allChecked ? 'Ready to start' : 'Finish the readiness checks'}</Text>
+        <Text style={styles.reminderText}>
+          {allChecked
+            ? `All ${checklistItems.length} checks are complete. Starting live writes the shared state for both APKs.`
+            : `${readyCount}/${checklistItems.length} complete. Check: ${missingItems[0]}.`}
+        </Text>
       </Card>
-      <Button label="Start shared live session" icon="videocam" onPress={onStartStream} style={{ marginTop: 18 }} />
+      <Button
+        label={allChecked ? 'Start shared live session' : 'Complete checklist first'}
+        icon={allChecked ? 'videocam' : 'lock-closed'}
+        onPress={onStartStream}
+        disabled={!allChecked}
+        style={{ marginTop: 18 }}
+      />
     </View>
   );
 }
@@ -66,6 +78,7 @@ const styles = StyleSheet.create({
   checkText: { color: colors.muted, fontWeight: '800', flex: 1, lineHeight: 20 },
   checkTextActive: { color: colors.ink },
   reminderCard: { marginTop: 14, backgroundColor: '#FFF8EA' },
+  readyCard: { backgroundColor: '#E9F7F2', borderColor: '#B7E1D1' },
   reminderTitle: { color: colors.ink, fontSize: 17, fontWeight: '900', marginBottom: 6 },
   reminderText: { color: colors.muted, fontWeight: '700', lineHeight: 20 },
 });
