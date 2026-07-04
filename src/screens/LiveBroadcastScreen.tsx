@@ -20,6 +20,9 @@ export function LiveBroadcastScreen({
   const [muted, setMuted] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [paused, setPaused] = useState(false);
+  const latestTravelerAlert = [...messages].reverse().find((message) =>
+    message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
+  );
 
   const sendReply = async () => {
     try {
@@ -39,6 +42,17 @@ export function LiveBroadcastScreen({
         <View style={styles.timerPill}><Text style={styles.timerText}>{request?.status === 'live' ? 'LIVE' : 'Ready'}</Text></View>
       </View>
       <BroadcasterPlaceholder />
+      {latestTravelerAlert ? (
+        <Card style={styles.alertCard}>
+          <View style={styles.alertRow}>
+            <Ionicons name="alert-circle" size={24} color={colors.danger} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>Traveler needs attention</Text>
+              <Text style={styles.alertText}>{latestTravelerAlert.text}</Text>
+            </View>
+          </View>
+        </Card>
+      ) : null}
       <Card style={styles.controlCard}>
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, paused && styles.statusDotPaused]} />
@@ -91,6 +105,10 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 22, fontWeight: '900', marginTop: 4 },
   timerPill: { backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   timerText: { color: colors.white, fontWeight: '900' },
+  alertCard: { marginTop: 14, backgroundColor: '#FFF1F1', borderColor: '#F1B8B8' },
+  alertRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  alertTitle: { color: colors.danger, fontWeight: '900', fontSize: 16, marginBottom: 3 },
+  alertText: { color: colors.ink, fontWeight: '800', lineHeight: 20 },
   controlCard: { marginTop: 14 },
   statusRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
   statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2AE088' },
