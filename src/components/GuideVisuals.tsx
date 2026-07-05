@@ -40,7 +40,7 @@ export function GuideRouteMap({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function BroadcasterPlaceholder() {
+export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Traveler' }: { guideName?: string; travelerName?: string }) {
   return (
     <View style={styles.video}>
       <View style={styles.videoGlow} />
@@ -54,11 +54,12 @@ export function BroadcasterPlaceholder() {
       </View>
       <View style={styles.videoCenter}>
         <Ionicons name="videocam" size={40} color={colors.white} />
-        <Text style={styles.videoTitle}>Your camera preview</Text>
+        <Text style={styles.videoEyebrow}>Guide camera</Text>
+        <Text style={styles.videoTitle}>{guideName}</Text>
         <Text style={styles.videoText}>Mock broadcaster surface for Expo Go. Live video SDK plugs in here.</Text>
       </View>
       <View style={styles.videoBottom}>
-        <Text style={styles.videoMeta}>Traveler: Sofia • English captions</Text>
+        <Text style={styles.videoMeta}>Traveler: {travelerName} • English captions</Text>
         <Text style={styles.videoMeta}>18:42 left</Text>
       </View>
     </View>
@@ -150,7 +151,8 @@ const styles = StyleSheet.create({
   networkBadge: { position: 'absolute', top: 18, right: 18, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5 },
   networkText: { color: colors.ink, fontWeight: '900', fontSize: 12 },
   videoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  videoTitle: { color: colors.white, fontSize: 24, fontWeight: '900', marginTop: 10 },
+  videoEyebrow: { color: colors.gold, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, marginTop: 10, fontSize: 11 },
+  videoTitle: { color: colors.white, fontSize: 24, fontWeight: '900', marginTop: 4 },
   videoText: { color: 'rgba(255,255,255,0.72)', textAlign: 'center', marginTop: 8, lineHeight: 20 },
   videoBottom: { position: 'absolute', bottom: 18, left: 18, right: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   videoMeta: { color: colors.white, fontWeight: '800', fontSize: 12, flexShrink: 1 },

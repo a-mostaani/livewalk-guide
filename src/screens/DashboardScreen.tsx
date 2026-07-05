@@ -3,8 +3,12 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { guideProfile } from '../data/mock';
+import { MarketplaceRequest } from '../api';
 
-export function DashboardScreen({ online, pendingCount = 0, onToggleOnline, onViewRequest }: { online: boolean; pendingCount?: number; onToggleOnline: () => void; onViewRequest: () => void }) {
+export function DashboardScreen({ online, pendingCount = 0, newestRequest, guideName, onToggleOnline, onViewRequest }: { online: boolean; pendingCount?: number; newestRequest?: MarketplaceRequest; guideName?: string; onToggleOnline: () => void; onViewRequest: () => void }) {
+  const displayGuideName = guideName?.trim() || guideProfile.name;
+  const guideInitials = displayGuideName.slice(0, 2).toUpperCase();
+  const travelerName = newestRequest?.travelerName?.trim() || 'Traveler';
   return (
     <View>
       <Header
@@ -27,9 +31,10 @@ export function DashboardScreen({ online, pendingCount = 0, onToggleOnline, onVi
       </Card>
       <Card style={styles.profileCard}>
         <View style={styles.avatarRow}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>YT</Text></View>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{guideInitials}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{guideProfile.name}</Text>
+            <Text style={styles.profileLabel}>Signed in guide</Text>
+            <Text style={styles.name}>{displayGuideName}</Text>
             <Text style={styles.meta}>{guideProfile.city} • {guideProfile.area}</Text>
           </View>
           <View style={styles.ratingPill}><Text style={styles.rating}>★ {guideProfile.rating}</Text></View>
@@ -67,7 +72,7 @@ export function DashboardScreen({ online, pendingCount = 0, onToggleOnline, onVi
           <View style={styles.requestIcon}><Ionicons name="notifications" size={24} color={colors.white} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.requestTitle}>{pendingCount > 0 ? `${pendingCount} live request${pendingCount === 1 ? '' : 's'} waiting` : 'No live requests yet'}</Text>
-            <Text style={styles.requestBody}>{pendingCount > 0 ? 'Tap this card or the button below to open the newest traveler request.' : 'Create a request in the traveler APK, then it appears here.'}</Text>
+            <Text style={styles.requestBody}>{pendingCount > 0 ? `From ${travelerName} • ${newestRequest?.route ?? 'Route pending'}` : 'Create a request in the traveler APK, then it appears here.'}</Text>
           </View>
           {pendingCount > 0 ? <Ionicons name="chevron-forward" size={22} color={colors.ink} /> : null}
         </Card>
@@ -90,6 +95,7 @@ const styles = StyleSheet.create({
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 58, height: 58, borderRadius: 22, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontWeight: '900', fontSize: 18 },
+  profileLabel: { color: colors.gold, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 10, marginBottom: 2 },
   name: { color: colors.ink, fontSize: 19, fontWeight: '900' },
   meta: { color: colors.muted, fontWeight: '700', marginTop: 2 },
   ratingPill: { backgroundColor: colors.cream, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },

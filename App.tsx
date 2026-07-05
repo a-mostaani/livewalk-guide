@@ -44,6 +44,7 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authUser, setAuthUser] = useState<AuthUser | undefined>();
   const scrollRef = useRef<ScrollView>(null);
+  const guideName = authUser?.name?.trim() || 'Guide';
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -193,11 +194,11 @@ export default function App() {
             ) : (
               <>
                 {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
-                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
+                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
                 {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
                 {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
                 {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onStartStream={startLive} /> : null}
-                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
+                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
                 {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                 {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
                 {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}

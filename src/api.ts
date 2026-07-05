@@ -63,17 +63,11 @@ export async function listPendingRequests() {
 }
 
 export async function acceptRequest(id: string) {
-  return api<{ ok: true; request: MarketplaceRequest; session: LiveSession }>(`/api/requests/${id}/accept`, {
-    method: 'POST',
-    body: JSON.stringify({ guideId: 'guide_yuki', guideName: 'Yuki Tanaka', guideAvatar: 'YT' }),
-  });
+  return api<{ ok: true; request: MarketplaceRequest; session: LiveSession }>(`/api/requests/${id}/accept`, { method: 'POST' });
 }
 
 export async function declineRequest(id: string) {
-  return api<{ ok: true; request: MarketplaceRequest }>(`/api/requests/${id}/decline`, {
-    method: 'POST',
-    body: JSON.stringify({ guideId: 'guide_yuki', guideName: 'Yuki Tanaka' }),
-  });
+  return api<{ ok: true; request: MarketplaceRequest }>(`/api/requests/${id}/decline`, { method: 'POST' });
 }
 
 export async function startSession(sessionId: string) {
@@ -87,6 +81,6 @@ export async function getSessionStatus(sessionId: string) {
 export async function sendSessionMessage(sessionId: string, text: string) {
   return api<{ ok: true; message: SessionMessage }>(`/api/sessions/${sessionId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ senderRole: 'guide', senderName: 'Yuki', text }),
+    body: JSON.stringify({ text }),
   });
 }

@@ -8,11 +8,13 @@ import { MarketplaceRequest, SessionMessage } from '../api';
 
 export function LiveBroadcastScreen({
   request,
+  guideName = 'Guide',
   messages,
   onSendMessage,
   onEnd,
 }: {
   request?: MarketplaceRequest;
+  guideName?: string;
   messages: SessionMessage[];
   onSendMessage: (text: string) => Promise<void>;
   onEnd: () => void;
@@ -22,6 +24,7 @@ export function LiveBroadcastScreen({
   const [paused, setPaused] = useState(false);
   const [actionNote, setActionNote] = useState('Hold to talk sends guide voice-status events to the traveler.');
   const sessionReady = Boolean(request?.sessionId);
+  const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
   );
@@ -64,7 +67,7 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.timerPill}><Text style={styles.timerText}>{request?.status === 'live' ? 'LIVE' : 'Ready'}</Text></View>
       </View>
-      <BroadcasterPlaceholder />
+      <BroadcasterPlaceholder guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
           <View style={styles.alertRow}>

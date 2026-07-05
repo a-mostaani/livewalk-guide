@@ -15,14 +15,16 @@ export function IncomingRequestScreen({ request, busy = false, onAccept, onDecli
     );
   }
 
+  const travelerName = request.travelerName?.trim() || 'Traveler';
+
   return (
     <View>
-      <Header kicker="Incoming request" title="A traveler wants a live walk nearby." body="This card came from the traveler APK through the shared backend." />
+      <Header kicker="Incoming request" title={`${travelerName} wants a live walk nearby.`} body="This card came from the logged-in traveler profile through the shared backend." />
       <Card style={styles.heroCard}>
         <View style={styles.travelerTop}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{request.travelerName.slice(0, 2).toUpperCase()}</Text></View>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{travelerName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.travelerName}>{request.travelerName}</Text>
+            <Text style={styles.travelerName}>{travelerName}</Text>
             <Text style={styles.travelerMeta}>{request.scheduledTime} • {request.id}</Text>
           </View>
           <Text style={styles.payout}>$32</Text>
