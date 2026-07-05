@@ -14,6 +14,14 @@ export function AuthScreen({ busy, error, onSubmit }: { busy: boolean; error?: s
   const [localError, setLocalError] = useState('');
   const shownError = localError || error;
 
+  const useDemoGuide = () => {
+    setMode('login');
+    setName('Yuki Tanaka');
+    setEmail('demo.guide@livewalk.test');
+    setPassword('LiveWalkDemo1!');
+    setLocalError('');
+  };
+
   const submit = () => {
     const displayName = name.trim();
     if (!displayName) {
@@ -36,6 +44,7 @@ export function AuthScreen({ busy, error, onSubmit }: { busy: boolean; error?: s
         <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
         {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
+        <Button label="Use Demo Guide" icon="sparkles" variant="secondary" onPress={useDemoGuide} disabled={busy} style={styles.demo} />
         <Button label={busy ? 'Working…' : isRegister ? 'Create account' : 'Log in'} icon={isRegister ? 'person-add' : 'log-in'} onPress={submit} disabled={busy} style={styles.primary} />
         <Button
           label={isRegister ? 'I already have an account' : 'Create a new account'}
@@ -51,6 +60,7 @@ export function AuthScreen({ busy, error, onSubmit }: { busy: boolean; error?: s
 
 const styles = StyleSheet.create({
   card: { gap: 2 },
+  demo: { marginTop: 2 },
   primary: { marginTop: 8 },
   secondary: { marginTop: 8 },
   error: { color: colors.danger, fontWeight: '800', marginVertical: 8 },
