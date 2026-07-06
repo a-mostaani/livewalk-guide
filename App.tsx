@@ -43,6 +43,7 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authUser, setAuthUser] = useState<AuthUser | undefined>();
+  const [checklistReady, setChecklistReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const guideName = authUser?.name?.trim() || 'Guide';
 
@@ -91,7 +92,17 @@ export default function App() {
   }, [authUser, online, activeRequest?.sessionId]);
 
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
-  const goNext = () => { navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]); };
+  const goNext = () => {
+    if (screen === 'checklist') {
+      if (!checklistReady) return;
+      startLive();
+      return;
+    }
+    navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]);
+  };
+  const nextDisabled = screen === 'checklist' && !checklistReady;
+  const nextLabel = screen === 'checklist' && !checklistReady ? 'Complete checks' : (isLastScreen ? 'Dashboard' : 'Next');
+  const nextIcon = screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward');
 
   const viewRequest = () => {
     const newestRequest = pendingRequests[0];
@@ -106,6 +117,7 @@ export default function App() {
     try {
       const data = await acceptRequest(activeRequest.id);
       setActiveRequest(data.request);
+      setChecklistReady(false);
       setMessages([]);
       navigateTo('route');
     } finally {
@@ -197,7 +209,7 @@ export default function App() {
                 {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
                 {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
                 {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
-                {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onStartStream={startLive} /> : null}
+                {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
                 {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
                 {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                 {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
@@ -208,7 +220,7 @@ export default function App() {
           {authUser ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
             <View style={styles.bottomNav}>
               <Button label="Previous" icon="chevron-back" variant="secondary" onPress={goPrevious} disabled={isFirstScreen} style={styles.navButton} />
-              <Button label={isLastScreen ? 'Dashboard' : 'Next'} icon={isLastScreen ? 'speedometer' : 'chevron-forward'} onPress={goNext} style={styles.navButton} />
+              <Button label={nextLabel} icon={nextIcon} onPress={goNext} disabled={nextDisabled} style={styles.navButton} />
             </View>
           </SafeAreaView> : null}
         </View>

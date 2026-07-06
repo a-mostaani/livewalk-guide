@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Stat, colors } from '../components/Primitives';
@@ -12,12 +12,16 @@ const checklistItems = [
   'Traveler language and interests reviewed',
 ];
 
-export function ChecklistScreen({ request, onStartStream }: { request?: MarketplaceRequest; onStartStream: () => void }) {
-  const [checked, setChecked] = useState<string[]>([checklistItems[0], checklistItems[2]]);
+export function ChecklistScreen({ request, onReadyChange, onStartStream }: { request?: MarketplaceRequest; onReadyChange?: (ready: boolean) => void; onStartStream: () => void }) {
+  const [checked, setChecked] = useState<string[]>([]);
   const toggle = (item: string) => setChecked((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const readyCount = checked.length;
   const missingItems = checklistItems.filter((item) => !checked.includes(item));
   const allChecked = missingItems.length === 0;
+
+  useEffect(() => {
+    onReadyChange?.(allChecked);
+  }, [allChecked, onReadyChange]);
 
   return (
     <View>
@@ -41,7 +45,7 @@ export function ChecklistScreen({ request, onStartStream }: { request?: Marketpl
           const active = checked.includes(item);
           return (
             <TouchableOpacity key={item} activeOpacity={0.82} onPress={() => toggle(item)} style={styles.checkRow}>
-              <Ionicons name={active ? 'checkmark-circle' : 'ellipse-outline'} size={24} color={active ? colors.green : colors.muted} />
+              <Ionicons name={active ? 'checkbox' : 'square-outline'} size={24} color={active ? colors.green : colors.muted} />
               <Text style={[styles.checkText, active && styles.checkTextActive]}>{item}</Text>
             </TouchableOpacity>
           );
@@ -74,7 +78,7 @@ const styles = StyleSheet.create({
   heroSub: { color: 'rgba(255,255,255,0.72)', marginTop: 4, fontWeight: '700' },
   stats: { flexDirection: 'row', gap: 8, marginTop: 16 },
   checkCard: { gap: 4 },
-  checkRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 10 },
+  checkRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 11 },
   checkText: { color: colors.muted, fontWeight: '800', flex: 1, lineHeight: 20 },
   checkTextActive: { color: colors.ink },
   reminderCard: { marginTop: 14, backgroundColor: '#FFF8EA' },
