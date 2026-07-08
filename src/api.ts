@@ -26,17 +26,39 @@ let authToken = '';
 export function setAuthToken(token: string) { authToken = token; }
 export function clearAuthToken() { authToken = ''; }
 
+function friendlyApiError(status: number, raw: string) {
+  const message = String(raw || '').trim();
+  const lower = message.toLowerCase();
+  if (lower.includes('email already')) return 'That email already has an account. Switch to login, or use a fresh demo email.';
+  if (lower.includes('invalid email or password')) return 'Email or password is not right. Check the demo credentials and try again.';
+  if (lower.includes('valid email')) return 'Enter a valid email address.';
+  if (lower.includes('password must')) return 'Use a password with at least 6 characters.';
+  if (lower.includes('login required') || status === 401) return 'Session expired. Log in again, then retry.';
+  if (lower.includes('only the guide can start')) return 'Only the Guide can start the live session after Ready is complete.';
+  if (lower.includes('not started')) return 'The Guide has not started the live session yet.';
+  if (status === 403) return message || 'This account is not allowed to do that step.';
+  if (status >= 500) return 'LiveWalk is having a server problem. Retry in a moment.';
+  return message || `LiveWalk request failed (${status}).`;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
-      ...(init?.headers || {}),
-    },
-  });
-  const data = await response.json();
-  if (!response.ok || !data.ok) throw new Error(data.error || `API ${response.status}`);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        'content-type': 'application/json',
+        ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+        ...(init?.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error('Cannot reach LiveWalk right now. Check the phone connection and retry.');
+  }
+
+  let data: any = {};
+  try { data = await response.json(); } catch { data = {}; }
+  if (!response.ok || !data.ok) throw new Error(friendlyApiError(response.status, data.error));
   return data;
 }
 
