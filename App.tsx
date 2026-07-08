@@ -3,7 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { API_BASE, acceptRequest, AuthPayload, AuthUser, declineRequest, getSessionStatus, health, listPendingRequests, loginAccount, MarketplaceRequest, registerAccount, sendSessionMessage, SessionMessage, setAuthToken, startSession } from './src/api';
+import { API_BASE, acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, MarketplaceRequest, sendSessionMessage, SessionMessage, startSession } from './src/api';
+import { AuthProvider, useAuth } from './src/auth/AuthContext';
 import { Button, colors } from './src/components/Primitives';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { ChecklistScreen } from './src/screens/ChecklistScreen';
@@ -31,7 +32,8 @@ const screenLabels: Record<Screen, string> = {
   ratings: 'Rating',
 };
 
-export default function App() {
+function GuideApp() {
+  const { user } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [online, setOnline] = useState(true);
   const [apiOnline, setApiOnline] = useState(false);
@@ -40,12 +42,9 @@ export default function App() {
   const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [busy, setBusy] = useState(false);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [authUser, setAuthUser] = useState<AuthUser | undefined>();
   const [checklistReady, setChecklistReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const guideName = authUser?.name?.trim() || 'Guide';
+  const guideName = user?.name?.trim() || 'Guide';
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -57,7 +56,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!authUser) {
+    if (!user) {
       setApiOnline(false);
       setApiNote('Log in to connect backend');
       return;
@@ -89,7 +88,7 @@ export default function App() {
     poll();
     const timer = setInterval(poll, 2000);
     return () => { active = false; clearInterval(timer); };
-  }, [authUser, online, activeRequest?.sessionId]);
+  }, [user, online, activeRequest?.sessionId]);
 
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
   const goNext = () => {
@@ -155,20 +154,9 @@ export default function App() {
     setMessages(data.messages);
   };
 
-  const handleAuth = async (mode: 'register' | 'login', payload: AuthPayload) => {
-    setAuthBusy(true);
-    setAuthError('');
-    try {
-      const data = mode === 'register' ? await registerAccount(payload) : await loginAccount(payload);
-      setAuthToken(data.token);
-      setAuthUser(data.user);
-      setScreen('dashboard');
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Authentication failed');
-    } finally {
-      setAuthBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (user && screen === 'onboarding') setScreen('dashboard');
+  }, [user, screen]);
 
   return (
     <SafeAreaProvider>
@@ -188,8 +176,8 @@ export default function App() {
               <Text style={styles.statusText}>{apiOnline ? 'Live' : 'Sync'}</Text>
             </View>
           </View>
-          <Text style={styles.backendLine} numberOfLines={1}>{authUser ? `${authUser.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
-          {authUser ? <View style={styles.stepper}>
+          <Text style={styles.backendLine} numberOfLines={1}>{user ? `${user.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
+          {user ? <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
               return (
@@ -201,8 +189,8 @@ export default function App() {
             })}
           </View> : null}
           <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator>
-            {!authUser ? (
-              <AuthScreen busy={authBusy} error={authError} onSubmit={handleAuth} />
+            {!user ? (
+              <AuthScreen />
             ) : (
               <>
                 {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
@@ -217,7 +205,7 @@ export default function App() {
               </>
             )}
           </ScrollView>
-          {authUser ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
+          {user ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
             <View style={styles.bottomNav}>
               <Button label="Previous" icon="chevron-back" variant="secondary" onPress={goPrevious} disabled={isFirstScreen} style={styles.navButton} />
               <Button label={nextLabel} icon={nextIcon} onPress={goNext} disabled={nextDisabled} style={styles.navButton} />
@@ -258,3 +246,11 @@ const styles = StyleSheet.create({
   bottomNav: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10, borderTopWidth: 1, borderTopColor: 'rgba(6,24,38,0.08)', backgroundColor: 'rgba(251,247,239,0.98)' },
   navButton: { flex: 1 },
 });
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <GuideApp />
+    </AuthProvider>
+  );
+}

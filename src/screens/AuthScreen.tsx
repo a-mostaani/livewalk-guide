@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Field, Header, colors } from '../components/Primitives';
-import { AuthPayload } from '../api';
+import { useAuth } from '../auth/AuthContext';
 
 type Mode = 'register' | 'login';
 
-export function AuthScreen({ busy, error, onSubmit }: { busy: boolean; error?: string; onSubmit: (mode: Mode, payload: AuthPayload) => Promise<void> }) {
+export function AuthScreen() {
+  const { busy, error, login, register } = useAuth();
   const [mode, setMode] = useState<Mode>('register');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('guide@livewalk.test');
@@ -29,7 +30,7 @@ export function AuthScreen({ busy, error, onSubmit }: { busy: boolean; error?: s
       return;
     }
     setLocalError('');
-    return onSubmit(mode, { name: displayName, email, password });
+    return mode === 'register' ? register({ name: displayName, email, password }) : login({ name: displayName, email, password });
   };
 
   return (
