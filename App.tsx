@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { API_BASE, acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, MarketplaceRequest, sendSessionMessage, SessionMessage, startSession } from './src/api';
+import { API_BASE } from './src/api';
 import { AuthProvider, useAuth } from './src/auth/AuthContext';
 import { Button, colors } from './src/components/Primitives';
 import { AuthScreen } from './src/screens/AuthScreen';
@@ -16,6 +16,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { RatingsProfileScreen } from './src/screens/RatingsProfileScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
+import { useSession } from './src/hooks/useSession';
 import { Screen } from './src/types';
 
 const screenOrder: Screen[] = ['onboarding', 'dashboard', 'request', 'route', 'checklist', 'live', 'earnings', 'schedule', 'ratings'];
@@ -36,15 +37,16 @@ function GuideApp() {
   const { user } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [online, setOnline] = useState(true);
-  const [apiOnline, setApiOnline] = useState(false);
-  const [apiNote, setApiNote] = useState('Checking backend…');
-  const [pendingRequests, setPendingRequests] = useState<MarketplaceRequest[]>([]);
-  const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
-  const [messages, setMessages] = useState<SessionMessage[]>([]);
-  const [busy, setBusy] = useState(false);
   const [checklistReady, setChecklistReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const guideName = user?.name?.trim() || 'Guide';
+  const session = useSession({ enabled: Boolean(user), online });
+  const pendingRequests = session.pendingRequests;
+  const activeRequest = session.activeRequest;
+  const messages = session.messages;
+  const apiOnline = session.apiOnline;
+  const apiNote = session.apiNote;
+  const busy = session.busy;
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -54,41 +56,6 @@ function GuideApp() {
     setScreen(nextScreen);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   };
-
-  useEffect(() => {
-    if (!user) {
-      setApiOnline(false);
-      setApiNote('Log in to connect backend');
-      return;
-    }
-    let active = true;
-    const poll = async () => {
-      try {
-        await health();
-        if (!active) return;
-        setApiOnline(true);
-        setApiNote('Backend connected');
-        if (online) {
-          const data = await listPendingRequests();
-          if (!active) return;
-          setPendingRequests(data.requests);
-        }
-        if (activeRequest?.sessionId) {
-          try {
-            const session = await getSessionStatus(activeRequest.sessionId);
-            if (active) setMessages(session.messages);
-          } catch {}
-        }
-      } catch {
-        if (!active) return;
-        setApiOnline(false);
-        setApiNote('Backend reconnecting');
-      }
-    };
-    poll();
-    const timer = setInterval(poll, 2000);
-    return () => { active = false; clearInterval(timer); };
-  }, [user, online, activeRequest?.sessionId]);
 
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
   const goNext = () => {
@@ -104,54 +71,30 @@ function GuideApp() {
   const nextIcon = screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward');
 
   const viewRequest = () => {
-    const newestRequest = pendingRequests[0];
-    if (!newestRequest) return;
-    setActiveRequest(newestRequest);
-    navigateTo('request');
+    const selected = session.selectRequest(pendingRequests[0]);
+    if (selected) navigateTo('request');
   };
 
   const acceptActiveRequest = async () => {
-    if (!activeRequest) return;
-    setBusy(true);
-    try {
-      const data = await acceptRequest(activeRequest.id);
-      setActiveRequest(data.request);
+    const accepted = await session.acceptActiveRequest();
+    if (accepted) {
       setChecklistReady(false);
-      setMessages([]);
       navigateTo('route');
-    } finally {
-      setBusy(false);
     }
   };
 
   const declineActiveRequest = async () => {
-    if (!activeRequest) return;
-    setBusy(true);
-    try {
-      await declineRequest(activeRequest.id);
-      setActiveRequest(undefined);
-      navigateTo('dashboard');
-    } finally {
-      setBusy(false);
-    }
+    const declined = await session.declineActiveRequest();
+    if (declined) navigateTo('dashboard');
   };
 
   const startLive = async () => {
-    if (activeRequest?.sessionId) {
-      try {
-        const data = await startSession(activeRequest.sessionId);
-        setMessages(data.messages);
-        setActiveRequest({ ...activeRequest, status: 'live' });
-      } catch {}
-    }
-    navigateTo('live');
+    const started = await session.startLive();
+    if (started) navigateTo('live');
   };
 
   const sendGuideMessage = async (text: string) => {
-    if (!activeRequest?.sessionId) return;
-    await sendSessionMessage(activeRequest.sessionId, text);
-    const data = await getSessionStatus(activeRequest.sessionId);
-    setMessages(data.messages);
+    await session.sendMessage(text);
   };
 
   useEffect(() => {
