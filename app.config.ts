@@ -28,6 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       backgroundColor: '#FBF7EF',
     },
     assetBundlePatterns: ['**/*'],
+    plugins: ['expo-dev-client'],
     newArchEnabled: false,
     android: {
       package: 'com.livewalk.guide',

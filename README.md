@@ -52,6 +52,21 @@ npm run android
 
 Expo will open the app on the running emulator.
 
+
+## Native/dev build readiness
+
+LW-8 prepares the Guide app for native-device features such as real GPS, camera, microphone, and future live media modules. This app now includes `expo-dev-client` and an `eas.json` with development/internal Android APK profiles.
+
+For local native development, use a development build instead of Expo Go once native modules are added:
+
+```bash
+npm install
+npx eas build --profile development --platform android
+npx expo start --dev-client
+```
+
+For the current demo APKs, keep using the published installable Android builds from the LiveWalk APK download page. The existing demo flow should behave the same; LW-8 only adds the native foundation.
+
 ## Useful development commands
 
 ```bash
