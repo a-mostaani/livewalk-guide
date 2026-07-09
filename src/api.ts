@@ -1,7 +1,8 @@
 import type { AuthPayload, AuthUser, LiveSession, MarketplaceRequest, SessionMessage } from './types';
 export type { AuthPayload, AuthUser, LiveSession, MarketplaceGuide, MarketplaceRequest, SessionMessage } from './types';
 
-export const API_BASE = 'https://rendezvous-livewalk-api.webpeter.com';
+import { API_BASE } from './config';
+export { API_BASE } from './config';
 
 let authToken = '';
 let authFailureHandler: (() => void | Promise<void>) | undefined;
