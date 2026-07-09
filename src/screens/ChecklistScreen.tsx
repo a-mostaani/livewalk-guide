@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Stat, colors } from '../components/Primitives';
 import { MarketplaceRequest } from '../api';
+import { formatDuration, formatEstimateTotal, formatScheduledStart } from '../format';
 
 const checklistItems = [
   'I am at the public starting point',
@@ -31,13 +32,13 @@ export function ChecklistScreen({ request, onReadyChange, onStartStream }: { req
           <View style={styles.icon}><Ionicons name="calendar" size={26} color={colors.white} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroTitle}>{request?.route ?? 'No accepted request selected'}</Text>
-            <Text style={styles.heroSub}>{request?.scheduledTime ?? '—'} • {request?.language ?? '—'}</Text>
+            <Text style={styles.heroSub}>{formatScheduledStart(request?.scheduledStart)} • {request?.language ?? '—'}</Text>
           </View>
         </View>
         <View style={styles.stats}>
-          <Stat label="Payout" value="$32" tone="dark" />
+          <Stat label="Payout" value={formatEstimateTotal(request?.estimate)} tone="dark" />
           <Stat label="Ready" value={`${readyCount}/5`} tone="dark" />
-          <Stat label="Duration" value={request?.duration ?? '—'} tone="dark" />
+          <Stat label="Duration" value={formatDuration(request?.durationMinutes)} tone="dark" />
         </View>
       </Card>
       <Card style={styles.checkCard}>

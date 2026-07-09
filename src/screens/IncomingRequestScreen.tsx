@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap } from '../components/GuideVisuals';
 import { MarketplaceRequest } from '../api';
+import { formatDuration, formatEstimateTotal, formatScheduledStart } from '../format';
 
 export function IncomingRequestScreen({ request, busy = false, onAccept, onDecline }: { request?: MarketplaceRequest; busy?: boolean; onAccept: () => void; onDecline: () => void }) {
   if (!request) {
@@ -25,14 +26,14 @@ export function IncomingRequestScreen({ request, busy = false, onAccept, onDecli
           <View style={styles.avatar}><Text style={styles.avatarText}>{travelerName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.travelerName}>{travelerName}</Text>
-            <Text style={styles.travelerMeta}>{request.scheduledTime} • {request.id}</Text>
+            <Text style={styles.travelerMeta}>{formatScheduledStart(request.scheduledStart)} • {request.id}</Text>
           </View>
-          <Text style={styles.payout}>$32</Text>
+          <Text style={styles.payout}>{formatEstimateTotal(request.estimate)}</Text>
         </View>
         <Text style={styles.route}>{request.route}</Text>
         <View style={styles.stats}>
           <Stat label="Status" value={request.status} />
-          <Stat label="Duration" value={request.duration} />
+          <Stat label="Duration" value={formatDuration(request.durationMinutes)} />
           <Stat label="Language" value={request.language} />
         </View>
         <View style={styles.pills}>{request.interests.map((interest) => <Pill key={interest} label={interest} selected />)}</View>

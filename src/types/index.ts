@@ -41,6 +41,21 @@ export type Review = {
 };
 
 
+export type RequestPoint = {
+  label: string;
+  lat: number;
+  lng: number;
+};
+
+export type Estimate = {
+  currency: string;
+  distanceKm: number;
+  walkingMinutes: number;
+  platformFee: number;
+  guideFee: number;
+  total: number;
+};
+
 export type MarketplaceGuide = {
   id: string;
   name: string;
@@ -50,13 +65,14 @@ export type MarketplaceGuide = {
 export type MarketplaceRequest = {
   id: string;
   travelerName: string;
-  origin: string;
-  destination: string;
+  origin: RequestPoint;
+  destination: RequestPoint;
   route: string;
-  scheduledTime: string;
-  duration: string;
+  scheduledStart: string;
+  durationMinutes: number;
   language: string;
   interests: string[];
+  estimate: Estimate;
   status: 'pending' | 'accepted' | 'declined' | 'live';
   guide: MarketplaceGuide | null;
   sessionId: string | null;

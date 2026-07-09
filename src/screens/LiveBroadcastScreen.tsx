@@ -5,6 +5,7 @@ import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from 
 import { Button, Card, colors } from '../components/Primitives';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
+import { formatDuration } from '../format';
 
 export function LiveBroadcastScreen({
   request,
@@ -103,7 +104,7 @@ export function LiveBroadcastScreen({
       </Card>
       <Card style={styles.panel}>
         <View style={styles.panelHeader}>
-          <View><Text style={styles.panelTitle}>GPS and route</Text><Text style={styles.panelSub}>{request?.duration ?? '45 min'} route • next turn in 80 m</Text></View>
+          <View><Text style={styles.panelTitle}>GPS and route</Text><Text style={styles.panelSub}>{formatDuration(request?.durationMinutes)} route • next turn in 80 m</Text></View>
           <Ionicons name="navigate-circle" size={28} color={colors.blue} />
         </View>
         <GuideRouteMap compact />

@@ -5,6 +5,7 @@ import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitiv
 import { GuideRouteMap, SafetyNote } from '../components/GuideVisuals';
 import { routeStops } from '../data/mock';
 import { MarketplaceRequest } from '../api';
+import { formatDuration, formatEstimateTotal } from '../format';
 
 export function RouteDetailsScreen({ request, onContinue }: { request?: MarketplaceRequest; onContinue: () => void }) {
   return (
@@ -13,14 +14,14 @@ export function RouteDetailsScreen({ request, onContinue }: { request?: Marketpl
       <GuideRouteMap />
       <Card style={styles.routeCard}>
         <Text style={styles.sectionTitle}>Start</Text>
-        <Text style={styles.routeText}>{request?.origin ?? 'No request selected'}</Text>
+        <Text style={styles.routeText}>{request?.origin.label ?? 'No request selected'}</Text>
         <Text style={styles.arrow}>↓</Text>
         <Text style={styles.sectionTitle}>Destination</Text>
-        <Text style={styles.routeText}>{request?.destination ?? 'Create and accept a traveler request first'}</Text>
+        <Text style={styles.routeText}>{request?.destination.label ?? 'Create and accept a traveler request first'}</Text>
         <View style={styles.stats}>
           <Stat label="Booking" value={request?.id.slice(0, 8) ?? '—'} />
-          <Stat label="Payout" value="$32" />
-          <Stat label="Time" value={request?.duration ?? '—'} />
+          <Stat label="Payout" value={formatEstimateTotal(request?.estimate)} />
+          <Stat label="Time" value={formatDuration(request?.durationMinutes)} />
         </View>
         <View style={styles.pills}>
           {request?.language ? <Pill label={request.language} selected /> : null}
