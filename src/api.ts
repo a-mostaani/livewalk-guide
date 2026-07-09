@@ -4,8 +4,11 @@ export type { AuthPayload, AuthUser, LiveSession, MarketplaceGuide, MarketplaceR
 export const API_BASE = 'https://rendezvous-livewalk-api.webpeter.com';
 
 let authToken = '';
+let authFailureHandler: (() => void | Promise<void>) | undefined;
+
 export function setAuthToken(token: string) { authToken = token; }
 export function clearAuthToken() { authToken = ''; }
+export function setAuthFailureHandler(handler?: () => void | Promise<void>) { authFailureHandler = handler; }
 
 function friendlyApiError(status: number, raw: string) {
   const message = String(raw || '').trim();
@@ -39,6 +42,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
   let data: any = {};
   try { data = await response.json(); } catch { data = {}; }
+  if (response.status === 401) await authFailureHandler?.();
   if (!response.ok || !data.ok) throw new Error(friendlyApiError(response.status, data.error));
   return data;
 }
@@ -55,6 +59,10 @@ export async function loginAccount(payload: AuthPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function getCurrentUser() {
+  return api<{ ok: true; user: AuthUser }>('/api/auth/me');
 }
 
 export async function health() {

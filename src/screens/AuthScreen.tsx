@@ -54,7 +54,7 @@ export function AuthScreen() {
           style={styles.secondary}
         />
       </Card>
-      <Text style={styles.note}>MVP note: login stays active while this app session is open. The display name is refreshed on login for this prototype.</Text>
+      <Text style={styles.note}>MVP note: login stays active after closing and reopening the app. The display name is refreshed on login for this prototype.</Text>
     </View>
   );
 }

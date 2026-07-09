@@ -1,6 +1,7 @@
-import React, { createContext, ReactNode, useContext, useMemo, useState } from 'react';
-import { clearAuthToken, loginAccount, registerAccount, setAuthToken } from '../api';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { clearAuthToken, getCurrentUser, loginAccount, registerAccount, setAuthFailureHandler, setAuthToken } from '../api';
 import type { AuthPayload, AuthUser } from '../types';
+import { clearStoredAuthToken, readStoredAuthToken, saveStoredAuthToken } from './tokenStorage';
 
 type AuthContextValue = {
   user?: AuthUser;
@@ -9,7 +10,7 @@ type AuthContextValue = {
   error: string;
   login: (payload: AuthPayload) => Promise<void>;
   register: (payload: AuthPayload) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -17,8 +18,45 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | undefined>();
   const [token, setToken] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+
+  const resetAuth = useCallback(async () => {
+    clearAuthToken();
+    await clearStoredAuthToken();
+    setToken('');
+    setUser(undefined);
+  }, []);
+
+  useEffect(() => {
+    setAuthFailureHandler(resetAuth);
+    return () => setAuthFailureHandler(undefined);
+  }, [resetAuth]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrate = async () => {
+      try {
+        const storedToken = await readStoredAuthToken();
+        if (!mounted) return;
+        if (!storedToken) return;
+
+        setAuthToken(storedToken);
+        setToken(storedToken);
+        const data = await getCurrentUser();
+        if (!mounted) return;
+        setUser(data.user);
+      } catch {
+        await resetAuth();
+      } finally {
+        if (mounted) setBusy(false);
+      }
+    };
+
+    hydrate();
+    return () => { mounted = false; };
+  }, [resetAuth]);
 
   const authenticate = async (mode: 'register' | 'login', payload: AuthPayload) => {
     setBusy(true);
@@ -26,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = mode === 'register' ? await registerAccount(payload) : await loginAccount(payload);
       setAuthToken(data.token);
+      await saveStoredAuthToken(data.token);
       setToken(data.token);
       setUser(data.user);
     } catch (authError) {
@@ -35,6 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const logout = async () => {
+    await resetAuth();
+    setError('');
+  };
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     token,
@@ -42,13 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     login: (payload) => authenticate('login', payload),
     register: (payload) => authenticate('register', payload),
-    logout: () => {
-      clearAuthToken();
-      setToken('');
-      setUser(undefined);
-      setError('');
-    },
-  }), [user, token, busy, error]);
+    logout,
+  }), [user, token, busy, error, resetAuth]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
