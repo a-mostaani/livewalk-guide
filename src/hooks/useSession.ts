@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import { acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
 import type { MarketplaceRequest, SessionMessage } from '../types';
@@ -17,7 +17,7 @@ export function useSession({ enabled, online }: UseSessionArgs) {
   const [busy, setBusy] = useState(false);
   const [locationNote, setLocationNote] = useState('GPS starts when the live session starts.');
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     await health();
     setApiOnline(true);
     setApiNote('Backend connected');
@@ -31,7 +31,7 @@ export function useSession({ enabled, online }: UseSessionArgs) {
       const session = await getSessionStatus(activeRequest.sessionId);
       setMessages(session.messages);
     }
-  };
+  }, [online, activeRequest?.sessionId]);
 
   useEffect(() => {
     if (!enabled) {
@@ -57,15 +57,15 @@ export function useSession({ enabled, online }: UseSessionArgs) {
       active = false;
       clearInterval(timer);
     };
-  }, [enabled, online, activeRequest?.sessionId]);
+  }, [enabled, refresh]);
 
-  const selectRequest = (request?: MarketplaceRequest) => {
+  const selectRequest = useCallback((request?: MarketplaceRequest) => {
     if (!request) return false;
     setActiveRequest(request);
     return true;
-  };
+  }, []);
 
-  const acceptActiveRequest = async () => {
+  const acceptActiveRequest = useCallback(async () => {
     if (!activeRequest) return false;
     setBusy(true);
     try {
@@ -76,9 +76,9 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     } finally {
       setBusy(false);
     }
-  };
+  }, [activeRequest]);
 
-  const declineActiveRequest = async () => {
+  const declineActiveRequest = useCallback(async () => {
     if (!activeRequest) return false;
     setBusy(true);
     try {
@@ -88,9 +88,9 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     } finally {
       setBusy(false);
     }
-  };
+  }, [activeRequest]);
 
-  const startLive = async () => {
+  const startLive = useCallback(async () => {
     if (!activeRequest?.sessionId) return false;
     try {
       const data = await startSession(activeRequest.sessionId);
@@ -100,14 +100,14 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     } catch {
       return false;
     }
-  };
+  }, [activeRequest]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!activeRequest?.sessionId) return;
     await sendSessionMessage(activeRequest.sessionId, text);
     const data = await getSessionStatus(activeRequest.sessionId);
     setMessages(data.messages);
-  };
+  }, [activeRequest?.sessionId]);
 
   useEffect(() => {
     if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {

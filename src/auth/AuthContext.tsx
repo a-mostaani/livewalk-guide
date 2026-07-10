@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, [resetAuth]);
 
-  const authenticate = async (mode: 'register' | 'login', payload: AuthPayload) => {
+  const authenticate = useCallback(async (mode: 'register' | 'login', payload: AuthPayload) => {
     setBusy(true);
     setError('');
     try {
@@ -72,22 +72,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setBusy(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const login = useCallback((payload: AuthPayload) => authenticate('login', payload), [authenticate]);
+  const register = useCallback((payload: AuthPayload) => authenticate('register', payload), [authenticate]);
+
+  const logout = useCallback(async () => {
     await resetAuth();
     setError('');
-  };
+  }, [resetAuth]);
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
     token,
     busy,
     error,
-    login: (payload) => authenticate('login', payload),
-    register: (payload) => authenticate('register', payload),
+    login,
+    register,
     logout,
-  }), [user, token, busy, error, resetAuth]);
+  }), [user, token, busy, error, login, register, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
