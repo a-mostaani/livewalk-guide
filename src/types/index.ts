@@ -85,7 +85,7 @@ export type LiveSession = {
   requestId: string;
   status: 'ready' | 'live';
   startedAt?: string | null;
-  location?: { label?: string; progress?: number } | null;
+  location?: { label?: string; lat?: number; lng?: number; accuracy?: number | null; timestamp?: string; progress?: number } | null;
 };
 
 export type SessionMessage = {

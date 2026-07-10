@@ -32,6 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     newArchEnabled: false,
     android: {
       package: 'com.livewalk.guide',
+      permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
     },
     ios: {
       supportsTablet: true,

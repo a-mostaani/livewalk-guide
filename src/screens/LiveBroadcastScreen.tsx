@@ -11,12 +11,14 @@ export function LiveBroadcastScreen({
   request,
   guideName = 'Guide',
   messages,
+  locationNote = 'GPS starts when the live session starts.',
   onSendMessage,
   onEnd,
 }: {
   request?: MarketplaceRequest;
   guideName?: string;
   messages: SessionMessage[];
+  locationNote?: string;
   onSendMessage: (text: string) => Promise<void>;
   onEnd: () => void;
 }) {
@@ -104,7 +106,7 @@ export function LiveBroadcastScreen({
       </Card>
       <Card style={styles.panel}>
         <View style={styles.panelHeader}>
-          <View><Text style={styles.panelTitle}>GPS and route</Text><Text style={styles.panelSub}>{formatDuration(request?.durationMinutes)} route • next turn in 80 m</Text></View>
+          <View><Text style={styles.panelTitle}>GPS and route</Text><Text style={styles.panelSub}>{formatDuration(request?.durationMinutes)} route • {locationNote}</Text></View>
           <Ionicons name="navigate-circle" size={28} color={colors.blue} />
         </View>
         <GuideRouteMap compact />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession } from '../api';
+import * as Location from 'expo-location';
+import { acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -14,6 +15,7 @@ export function useSession({ enabled, online }: UseSessionArgs) {
   const [apiOnline, setApiOnline] = useState(false);
   const [apiNote, setApiNote] = useState('Checking backend…');
   const [busy, setBusy] = useState(false);
+  const [locationNote, setLocationNote] = useState('GPS starts when the live session starts.');
 
   const refresh = async () => {
     await health();
@@ -107,6 +109,57 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     setMessages(data.messages);
   };
 
+  useEffect(() => {
+    if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {
+      setLocationNote('GPS starts when the live session starts.');
+      return;
+    }
+
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | undefined;
+    const sessionId = activeRequest.sessionId;
+
+    const startPublishing = async () => {
+      try {
+        setLocationNote('Requesting GPS permission…');
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status !== 'granted') {
+          if (!cancelled) setLocationNote('GPS permission is needed to share live route progress.');
+          return;
+        }
+
+        if (!cancelled) setLocationNote('Publishing live GPS to traveler.');
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 3000,
+            distanceInterval: 5,
+          },
+          (position) => {
+            void updateSessionLocation(sessionId, {
+              label: 'Guide live position',
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp: new Date(position.timestamp).toISOString(),
+            }).catch(() => {
+              if (!cancelled) setLocationNote('GPS captured locally; retrying backend sync.');
+            });
+          },
+        );
+      } catch {
+        if (!cancelled) setLocationNote('GPS is not available on this device yet.');
+      }
+    };
+
+    void startPublishing();
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [activeRequest?.status, activeRequest?.sessionId]);
+
+
   return {
     pendingRequests,
     activeRequest,
@@ -114,6 +167,7 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     apiOnline,
     apiNote,
     busy,
+    locationNote,
     refresh,
     selectRequest,
     acceptActiveRequest,

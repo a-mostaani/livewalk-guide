@@ -1,6 +1,15 @@
 import type { AuthPayload, AuthUser, LiveSession, MarketplaceRequest, SessionMessage } from './types';
 export type { AuthPayload, AuthUser, LiveSession, MarketplaceGuide, MarketplaceRequest, SessionMessage } from './types';
 
+export type SessionLocationPayload = {
+  label?: string;
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+  timestamp?: string;
+  progress?: number;
+};
+
 import { API_BASE } from './config';
 export { API_BASE } from './config';
 
@@ -94,5 +103,13 @@ export async function sendSessionMessage(sessionId: string, text: string) {
   return api<{ ok: true; message: SessionMessage }>(`/api/sessions/${sessionId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ text }),
+  });
+}
+
+
+export async function updateSessionLocation(sessionId: string, payload: SessionLocationPayload) {
+  return api<{ ok: true; session: LiveSession }>(`/api/sessions/${sessionId}/location`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
