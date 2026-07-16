@@ -69,7 +69,7 @@ For the current demo APKs, keep using the published installable Android builds f
 
 ## Runtime configuration
 
-Copy `.env.example` to `.env` for local development, or set the same variables in the EAS build environment. `LIVEKIT_WS_URL` is a public WebSocket endpoint and is copied into Expo runtime configuration as `extra.livekitWsUrl`; it identifies the LiveKit server but does not authorize a room connection. Keep server credentials and signing material out of this app.
+Copy `.env.example` to `.env` for local development, or set the same variables in the EAS build environment selected by the profile (`development`, `preview`, or `production`). `app.config.js` reads `MAPBOX_TOKEN_MOBILE` during EAS configuration and writes it to `extra.mapboxTokenMobile`, which the Android and iOS runtime selects. Use the real restricted public Mapbox token in EAS only; never commit it or substitute a fallback token. `LIVEKIT_WS_URL` is a public WebSocket endpoint and is copied into `extra.livekitWsUrl`; it identifies the LiveKit server but does not authorize a room connection. Keep LiveKit API credentials and all signing material out of this app.
 
 ## Useful development commands
 
