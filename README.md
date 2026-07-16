@@ -67,6 +67,10 @@ npx expo start --dev-client
 
 For the current demo APKs, keep using the published installable Android builds from the LiveWalk APK download page. The existing demo flow should behave the same; LW-8 only adds the native foundation.
 
+## Runtime configuration
+
+Copy `.env.example` to `.env` for local development, or set the same variables in the EAS build environment. `LIVEKIT_WS_URL` is a public WebSocket endpoint and is copied into Expo runtime configuration as `extra.livekitWsUrl`; it identifies the LiveKit server but does not authorize a room connection. Keep server credentials and signing material out of this app.
+
 ## Useful development commands
 
 ```bash
