@@ -95,6 +95,10 @@ export async function startSession(sessionId: string) {
   return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/start`, { method: 'POST' });
 }
 
+export async function endSession(sessionId: string) {
+  return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/end`, { method: 'POST' });
+}
+
 export async function getSessionStatus(sessionId: string) {
   return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/status`);
 }

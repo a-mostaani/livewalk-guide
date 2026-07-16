@@ -47,6 +47,7 @@ function GuideApp() {
   const apiOnline = session.apiOnline;
   const apiNote = session.apiNote;
   const busy = session.busy;
+  const walkEnded = session.walkEnded;
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -56,6 +57,13 @@ function GuideApp() {
     setScreen(nextScreen);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   };
+
+  useEffect(() => {
+    if (walkEnded && screen === 'live') {
+      setScreen('earnings');
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+    }
+  }, [screen, walkEnded]);
 
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
   const goNext = () => {
@@ -95,6 +103,12 @@ function GuideApp() {
 
   const sendGuideMessage = async (text: string) => {
     await session.sendMessage(text);
+  };
+
+  const endLive = async () => {
+    const ended = await session.endLive();
+    if (ended) navigateTo('earnings');
+    return ended;
   };
 
   useEffect(() => {
@@ -147,7 +161,7 @@ function GuideApp() {
                 {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
                 {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
                 {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
-                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
+                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
                 {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                 {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
                 {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}

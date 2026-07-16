@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as Location from 'expo-location';
-import { acceptRequest, declineRequest, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
+import { acceptRequest, declineRequest, endSession, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -30,6 +30,10 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     if (activeRequest?.sessionId) {
       const session = await getSessionStatus(activeRequest.sessionId);
       setMessages(session.messages);
+      if (session.session.status === 'ended') {
+        setActiveRequest((current) => current ? { ...current, status: 'completed' } : current);
+        setLocationNote('Walk completed. GPS sharing stopped.');
+      }
     }
   }, [online, activeRequest?.sessionId]);
 
@@ -109,6 +113,25 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     setMessages(data.messages);
   }, [activeRequest?.sessionId]);
 
+  const endLive = useCallback(async () => {
+    if (!activeRequest?.sessionId) return false;
+    setBusy(true);
+    try {
+      const data = await endSession(activeRequest.sessionId);
+      setMessages(data.messages);
+      setActiveRequest({ ...activeRequest, status: 'completed' });
+      setLocationNote('Walk completed. GPS sharing stopped.');
+      setApiOnline(true);
+      setApiNote('Walk complete');
+      return true;
+    } catch {
+      setApiNote('Could not end the shared walk yet');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [activeRequest]);
+
   useEffect(() => {
     if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {
       setLocationNote('GPS starts when the live session starts.');
@@ -168,11 +191,13 @@ export function useSession({ enabled, online }: UseSessionArgs) {
     apiNote,
     busy,
     locationNote,
+    walkEnded: activeRequest?.status === 'completed',
     refresh,
     selectRequest,
     acceptActiveRequest,
     declineActiveRequest,
     startLive,
     sendMessage,
+    endLive,
   };
 }
