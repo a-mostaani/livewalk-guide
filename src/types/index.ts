@@ -78,6 +78,10 @@ export type MarketplaceRequest = {
   sessionId: string | null;
   createdAt: string;
   updatedAt: string;
+  requestCancellation?: unknown;
+  cancellation?: unknown;
+  requestCancellationReason?: unknown;
+  cancellationReason?: unknown;
 };
 
 export type LiveSession = {
@@ -87,6 +91,10 @@ export type LiveSession = {
   startedAt?: string | null;
   endedAt?: string | null;
   location?: { label?: string; lat?: number; lng?: number; accuracy?: number | null; timestamp?: string; progress?: number } | null;
+  requestCancellation?: unknown;
+  cancellation?: unknown;
+  requestCancellationReason?: unknown;
+  cancellationReason?: unknown;
 };
 
 export type SessionMessage = {

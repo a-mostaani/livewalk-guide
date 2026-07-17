@@ -8,10 +8,11 @@ import {
   getRequestActionState,
   normalizeActiveRequestFromSession,
   RequestPollGate,
+  resolveGuideSessionPoll,
   shouldRefreshGuideState,
   shouldReloadDashboard,
 } from '../src/session/requestLifecycle';
-import type { MarketplaceRequest } from '../src/types';
+import type { LiveSession, MarketplaceRequest } from '../src/types';
 
 const pendingRequest: MarketplaceRequest = {
   id: 'request-pending',
@@ -114,5 +115,60 @@ describe('Guide request lifecycle', () => {
     });
 
     expect(afterPoll?.status).toBe('cancelled');
+  });
+
+  it('models accepted → ready session → traveler cancel → Guide poll → cancelled UI state', () => {
+    const acceptedRequest = {
+      ...pendingRequest,
+      id: 'request-pre-live-cancel',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-pre-live-cancel',
+    };
+    const readyPoll = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: acceptedRequest,
+    }, true);
+    expect(readyPoll).toMatchObject({ kind: 'updated', request: { status: 'accepted' } });
+
+    const cancelledPoll = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    }, false);
+
+    expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancelledPoll.kind === 'cancelled') expect(getRequestActionState(cancelledPoll.request).kind).toBe('cancelled');
+  });
+
+  type CancellationSignal = {
+    request?: MarketplaceRequest;
+    session?: Partial<LiveSession>;
+    requestCancellation?: unknown;
+    cancellation?: unknown;
+    requestCancellationReason?: unknown;
+    cancellationReason?: unknown;
+  };
+  const cancellationSignals: Array<[string, CancellationSignal]> = [
+    ['request status', { request: { ...pendingRequest, status: 'cancelled' } }],
+    ['session status', { session: { status: 'cancelled' } }],
+    ['top-level requestCancellation', { requestCancellation: { reason: 'traveler_cancelled' } }],
+    ['top-level cancellation reason', { cancellationReason: 'traveler_cancelled' }],
+    ['request cancellation reason', { request: { ...pendingRequest, cancellationReason: 'traveler_cancelled' } }],
+    ['session cancellation reason', { session: { cancellation: { reason: 'traveler_cancelled' } } }],
+  ];
+
+  it.each(cancellationSignals)('normalizes %s as a cancelled pre-live walk', (_name, signal) => {
+    const acceptedRequest = { ...pendingRequest, status: 'accepted' as const, sessionId: 'session-cancellation-signal' };
+    const afterPoll = normalizeActiveRequestFromSession(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready', ...signal.session },
+      request: signal.request ?? acceptedRequest,
+      requestCancellation: signal.requestCancellation,
+      cancellation: signal.cancellation,
+      requestCancellationReason: signal.requestCancellationReason,
+      cancellationReason: signal.cancellationReason,
+    });
+
+    expect(afterPoll?.status).toBe('cancelled');
+    expect(getRequestActionState(afterPoll).kind).toBe('cancelled');
   });
 });

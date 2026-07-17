@@ -98,16 +98,27 @@ export async function declineRequest(id: string) {
   return api<{ ok: true; request: MarketplaceRequest }>(`/api/requests/${id}/decline`, { method: 'POST' });
 }
 
+export type SessionStatusResponse = {
+  ok: true;
+  session: LiveSession;
+  request?: MarketplaceRequest;
+  messages: SessionMessage[];
+  requestCancellation?: unknown;
+  cancellation?: unknown;
+  requestCancellationReason?: unknown;
+  cancellationReason?: unknown;
+};
+
 export async function startSession(sessionId: string) {
-  return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/start`, { method: 'POST' });
+  return api<SessionStatusResponse>(`/api/sessions/${sessionId}/start`, { method: 'POST' });
 }
 
 export async function endSession(sessionId: string) {
-  return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/end`, { method: 'POST' });
+  return api<SessionStatusResponse>(`/api/sessions/${sessionId}/end`, { method: 'POST' });
 }
 
 export async function getSessionStatus(sessionId: string) {
-  return api<{ ok: true; session: LiveSession; request?: MarketplaceRequest; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/status`);
+  return api<SessionStatusResponse>(`/api/sessions/${sessionId}/status`);
 }
 
 export async function sendSessionMessage(sessionId: string, text: string) {
