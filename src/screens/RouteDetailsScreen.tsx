@@ -3,11 +3,24 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap, SafetyNote } from '../components/GuideVisuals';
+import { CancelledWalkState } from '../components/CancelledWalkState';
 import { routeStops } from '../data/mock';
 import { MarketplaceRequest } from '../api';
 import { formatDuration, formatEstimateTotal } from '../format';
+import { getRequestActionState } from '../session/requestLifecycle';
 
 export function RouteDetailsScreen({ request, onContinue }: { request?: MarketplaceRequest; onContinue: () => void }) {
+  const actionState = getRequestActionState(request);
+
+  if (actionState.kind === 'cancelled') {
+    return (
+      <View>
+        <Header kicker="Route details" title={actionState.title} body={actionState.description} />
+        <CancelledWalkState />
+      </View>
+    );
+  }
+
   return (
     <View>
       <Header kicker="Route details" title="Confirm the walk path before you head out." body="Route details are read from the accepted traveler request." />

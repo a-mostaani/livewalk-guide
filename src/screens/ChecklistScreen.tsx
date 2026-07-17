@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Stat, colors } from '../components/Primitives';
+import { CancelledWalkState } from '../components/CancelledWalkState';
 import { MarketplaceRequest } from '../api';
 import { formatDuration, formatEstimateTotal, formatScheduledStart } from '../format';
+import { getRequestActionState } from '../session/requestLifecycle';
 
 const checklistItems = [
   'I am at the public starting point',
@@ -19,10 +21,20 @@ export function ChecklistScreen({ request, onReadyChange, onStartStream }: { req
   const readyCount = checked.length;
   const missingItems = checklistItems.filter((item) => !checked.includes(item));
   const allChecked = missingItems.length === 0;
+  const actionState = getRequestActionState(request);
 
   useEffect(() => {
-    onReadyChange?.(allChecked);
-  }, [allChecked, onReadyChange]);
+    onReadyChange?.(actionState.kind === 'actionable' && allChecked);
+  }, [actionState.kind, allChecked, onReadyChange]);
+
+  if (actionState.kind === 'cancelled') {
+    return (
+      <View>
+        <Header kicker="Confirmed trip" title={actionState.title} body={actionState.description} />
+        <CancelledWalkState />
+      </View>
+    );
+  }
 
   return (
     <View>

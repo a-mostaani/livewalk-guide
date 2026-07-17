@@ -3,9 +3,11 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
 import { Button, Card, colors } from '../components/Primitives';
+import { CancelledWalkState } from '../components/CancelledWalkState';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
 import { formatDuration } from '../format';
+import { getRequestActionState } from '../session/requestLifecycle';
 
 export function LiveBroadcastScreen({
   request,
@@ -26,12 +28,27 @@ export function LiveBroadcastScreen({
   const [captionsOn, setCaptionsOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [actionNote, setActionNote] = useState('Hold to talk sends guide voice-status events to the traveler.');
+  const actionState = getRequestActionState(request);
   const walkEnded = request?.status === 'completed';
-  const sessionReady = Boolean(request?.sessionId && request?.status === 'live');
+  const sessionReady = Boolean(request?.sessionId && request?.status === 'live' && actionState.kind === 'actionable');
   const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
   );
+
+  if (actionState.kind === 'cancelled') {
+    return (
+      <View>
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.kicker}>Shared live broadcast</Text>
+            <Text style={styles.title}>{actionState.title}</Text>
+          </View>
+        </View>
+        <CancelledWalkState />
+      </View>
+    );
+  }
 
   const sendSessionEvent = async (text: string, success: string) => {
     if (!sessionReady) {

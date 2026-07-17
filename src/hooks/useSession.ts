@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { acceptRequest, declineRequest, endSession, getSessionStatus, health, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
+import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
+import { canFetchPendingRequests, getRequestActionState, RequestPollGate, shouldReloadDashboard } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
   enabled: boolean;
+  authReady: boolean;
+  authKey: string;
   online: boolean;
+  dashboardFocused: boolean;
 };
 
-export function useSession({ enabled, online }: UseSessionArgs) {
+export function useSession({ enabled, authReady, authKey, online, dashboardFocused }: UseSessionArgs) {
   const [pendingRequests, setPendingRequests] = useState<MarketplaceRequest[]>([]);
   const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -16,43 +21,119 @@ export function useSession({ enabled, online }: UseSessionArgs) {
   const [apiNote, setApiNote] = useState('Checking backend…');
   const [busy, setBusy] = useState(false);
   const [locationNote, setLocationNote] = useState('GPS starts when the live session starts.');
+  const activeRequestRef = useRef<MarketplaceRequest | undefined>(undefined);
+  const pollGateRef = useRef(new RequestPollGate());
+  const authSnapshot = `${enabled}:${authReady}:${authKey}`;
+  const authSnapshotRef = useRef(authSnapshot);
+  const pollControlsSnapshot = `${online}`;
+  const pollControlsSnapshotRef = useRef(pollControlsSnapshot);
+  const dashboardFocusedRef = useRef(dashboardFocused);
 
-  const refresh = useCallback(async () => {
-    await health();
-    setApiOnline(true);
-    setApiNote('Backend connected');
+  activeRequestRef.current = activeRequest;
 
-    if (online) {
-      const data = await listPendingRequests();
-      setPendingRequests(data.requests);
-    }
-
-    if (activeRequest?.sessionId) {
-      const session = await getSessionStatus(activeRequest.sessionId);
-      setMessages(session.messages);
-      if (session.session.status === 'ended') {
-        setActiveRequest((current) => current ? { ...current, status: 'completed' } : current);
-        setLocationNote('Walk completed. GPS sharing stopped.');
-      }
-    }
-  }, [online, activeRequest?.sessionId]);
+  if (authSnapshotRef.current !== authSnapshot) {
+    authSnapshotRef.current = authSnapshot;
+    pollGateRef.current.reset({ clearLastValid: true });
+  } else if (pollControlsSnapshotRef.current !== pollControlsSnapshot) {
+    pollControlsSnapshotRef.current = pollControlsSnapshot;
+    pollGateRef.current.reset();
+  }
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !authReady) {
+      setPendingRequests([]);
+      setActiveRequest(undefined);
+      setMessages([]);
       setApiOnline(false);
       setApiNote('Log in to connect backend');
+      setLocationNote('GPS starts when the live session starts.');
+    }
+  }, [enabled, authReady]);
+
+  const markRequestCancelled = useCallback((requestId?: string) => {
+    setPendingRequests((current) => current.filter((request) => request.id !== requestId));
+    setActiveRequest((current) => {
+      if (!current || (requestId && current.id !== requestId)) return current;
+      return { ...current, status: 'cancelled' };
+    });
+    setMessages([]);
+    setLocationNote('Traveler cancelled this walk. GPS sharing stopped.');
+    setApiOnline(true);
+    setApiNote('Traveler cancelled this walk');
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!enabled || !authReady) return;
+
+    const pollGate = pollGateRef.current;
+    const snapshot = pollGate.beginPoll();
+    try {
+      await health();
+    } catch {
+      if (!pollGate.isCurrent(snapshot)) return;
+      setApiOnline(false);
+      setApiNote('Backend reconnecting');
+      pollGate.retain(snapshot);
       return;
     }
 
-    let active = true;
-    const poll = async () => {
+    if (!pollGate.isCurrent(snapshot)) return;
+    setApiOnline(true);
+    setApiNote('Backend connected');
+
+    if (canFetchPendingRequests({ enabled, authReady, online })) {
       try {
-        await refresh();
+        const data = await listPendingRequests();
+        const result = pollGate.accept(snapshot, data.requests);
+        if (result.kind === 'accepted') setPendingRequests(result.requests);
       } catch {
-        if (!active) return;
+        if (!pollGate.isCurrent(snapshot)) return;
         setApiOnline(false);
-        setApiNote('Backend reconnecting');
+        setApiNote('Request list reconnecting');
+        pollGate.retain(snapshot);
       }
+    }
+
+    const request = activeRequestRef.current;
+    const sessionId = request?.sessionId;
+    if (!request || !sessionId) return;
+
+    try {
+      const session = await getSessionStatus(sessionId);
+      if (!pollGate.isCurrent(snapshot) || activeRequestRef.current?.sessionId !== sessionId) return;
+      setMessages(session.messages);
+
+      if (session.session.status === 'cancelled') {
+        markRequestCancelled(request.id);
+        return;
+      }
+
+      if (session.session.status === 'ended') {
+        setActiveRequest((current) => current?.id === request.id ? { ...current, status: 'completed' } : current);
+        setLocationNote('Walk completed. GPS sharing stopped.');
+        return;
+      }
+
+      if (session.session.status === 'live') {
+        setActiveRequest((current) => current?.id === request.id ? { ...current, status: 'live' } : current);
+      }
+    } catch (error) {
+      if (!pollGate.isCurrent(snapshot) || activeRequestRef.current?.sessionId !== sessionId) return;
+      if (isRequestCancelledError(error)) {
+        markRequestCancelled(request.id);
+        return;
+      }
+      setApiOnline(false);
+      setApiNote('Session reconnecting');
+    }
+  }, [authReady, enabled, markRequestCancelled, online]);
+
+  useEffect(() => {
+    if (!enabled || !authReady) return;
+
+    let active = true;
+    const poll = () => {
+      if (active) void refresh();
     };
 
     poll();
@@ -61,80 +142,131 @@ export function useSession({ enabled, online }: UseSessionArgs) {
       active = false;
       clearInterval(timer);
     };
-  }, [enabled, refresh]);
+  }, [enabled, authReady, refresh]);
+
+  useEffect(() => {
+    const becameFocused = dashboardFocused && !dashboardFocusedRef.current;
+    dashboardFocusedRef.current = dashboardFocused;
+    if (becameFocused && shouldReloadDashboard({ dashboardFocused, appActive: AppState.currentState === 'active', enabled, authReady, online })) {
+      void refresh();
+    }
+  }, [authReady, dashboardFocused, enabled, online, refresh]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && shouldReloadDashboard({ dashboardFocused, appActive: true, enabled, authReady, online })) {
+        void refresh();
+      }
+    });
+    return () => subscription.remove();
+  }, [authReady, dashboardFocused, enabled, online, refresh]);
 
   const selectRequest = useCallback((request?: MarketplaceRequest) => {
-    if (!request) return false;
+    if (!request || getRequestActionState(request).kind === 'cancelled') return false;
     setActiveRequest(request);
     return true;
   }, []);
 
   const acceptActiveRequest = useCallback(async () => {
-    if (!activeRequest) return false;
+    if (!activeRequest || getRequestActionState(activeRequest).kind === 'cancelled') return false;
     setBusy(true);
     try {
       const data = await acceptRequest(activeRequest.id);
+      if (getRequestActionState(data.request).kind === 'cancelled') {
+        markRequestCancelled(activeRequest.id);
+        return false;
+      }
       setActiveRequest(data.request);
+      setPendingRequests((current) => current.filter((request) => request.id !== activeRequest.id));
       setMessages([]);
       return true;
+    } catch (error) {
+      if (isRequestCancelledError(error)) markRequestCancelled(activeRequest.id);
+      else setApiNote('Could not accept the request yet');
+      return false;
     } finally {
       setBusy(false);
     }
-  }, [activeRequest]);
+  }, [activeRequest, markRequestCancelled]);
 
   const declineActiveRequest = useCallback(async () => {
-    if (!activeRequest) return false;
+    if (!activeRequest || getRequestActionState(activeRequest).kind === 'cancelled') return false;
     setBusy(true);
     try {
       await declineRequest(activeRequest.id);
+      setPendingRequests((current) => current.filter((request) => request.id !== activeRequest.id));
       setActiveRequest(undefined);
       return true;
+    } catch (error) {
+      if (isRequestCancelledError(error)) markRequestCancelled(activeRequest.id);
+      else setApiNote('Could not decline the request yet');
+      return false;
     } finally {
       setBusy(false);
     }
-  }, [activeRequest]);
+  }, [activeRequest, markRequestCancelled]);
 
   const startLive = useCallback(async () => {
-    if (!activeRequest?.sessionId) return false;
+    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return false;
     try {
       const data = await startSession(activeRequest.sessionId);
+      if (data.session.status === 'cancelled') {
+        markRequestCancelled(activeRequest.id);
+        return false;
+      }
       setMessages(data.messages);
-      setActiveRequest({ ...activeRequest, status: 'live' });
+      setActiveRequest((current) => current?.id === activeRequest.id ? { ...current, status: 'live' } : current);
       return true;
-    } catch {
+    } catch (error) {
+      if (isRequestCancelledError(error)) markRequestCancelled(activeRequest.id);
+      else setApiNote('Could not start the shared walk yet');
       return false;
     }
-  }, [activeRequest]);
+  }, [activeRequest, markRequestCancelled]);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (!activeRequest?.sessionId) return;
-    await sendSessionMessage(activeRequest.sessionId, text);
-    const data = await getSessionStatus(activeRequest.sessionId);
-    setMessages(data.messages);
-  }, [activeRequest?.sessionId]);
+    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return;
+    try {
+      await sendSessionMessage(activeRequest.sessionId, text);
+      const data = await getSessionStatus(activeRequest.sessionId);
+      if (data.session.status === 'cancelled') {
+        markRequestCancelled(activeRequest.id);
+        return;
+      }
+      setMessages(data.messages);
+    } catch (error) {
+      if (isRequestCancelledError(error)) markRequestCancelled(activeRequest.id);
+      throw error;
+    }
+  }, [activeRequest, markRequestCancelled]);
 
   const endLive = useCallback(async () => {
-    if (!activeRequest?.sessionId) return false;
+    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return false;
     setBusy(true);
     try {
       const data = await endSession(activeRequest.sessionId);
+      if (data.session.status === 'cancelled') {
+        markRequestCancelled(activeRequest.id);
+        return false;
+      }
       setMessages(data.messages);
-      setActiveRequest({ ...activeRequest, status: 'completed' });
+      setActiveRequest((current) => current?.id === activeRequest.id ? { ...current, status: 'completed' } : current);
       setLocationNote('Walk completed. GPS sharing stopped.');
       setApiOnline(true);
       setApiNote('Walk complete');
       return true;
-    } catch {
-      setApiNote('Could not end the shared walk yet');
+    } catch (error) {
+      if (isRequestCancelledError(error)) markRequestCancelled(activeRequest.id);
+      else setApiNote('Could not end the shared walk yet');
       return false;
     } finally {
       setBusy(false);
     }
-  }, [activeRequest]);
+  }, [activeRequest, markRequestCancelled]);
 
   useEffect(() => {
     if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {
-      setLocationNote('GPS starts when the live session starts.');
+      if (activeRequest?.status !== 'cancelled') setLocationNote('GPS starts when the live session starts.');
       return;
     }
 
@@ -165,8 +297,12 @@ export function useSession({ enabled, online }: UseSessionArgs) {
               lng: position.coords.longitude,
               accuracy: position.coords.accuracy,
               timestamp: new Date(position.timestamp).toISOString(),
-            }).catch(() => {
-              if (!cancelled) setLocationNote('GPS captured locally; retrying backend sync.');
+            }).catch((error) => {
+              if (isRequestCancelledError(error)) {
+                markRequestCancelled(activeRequest.id);
+              } else if (!cancelled) {
+                setLocationNote('GPS captured locally; retrying backend sync.');
+              }
             });
           },
         );
@@ -180,8 +316,7 @@ export function useSession({ enabled, online }: UseSessionArgs) {
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeRequest?.status, activeRequest?.sessionId]);
-
+  }, [activeRequest?.id, activeRequest?.sessionId, activeRequest?.status, markRequestCancelled]);
 
   return {
     pendingRequests,

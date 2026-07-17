@@ -1,5 +1,7 @@
 import type { AuthPayload, AuthUser, LiveSession, MarketplaceRequest, SessionMessage } from './types';
+import { ApiError, readApiErrorCode } from './apiErrors';
 export type { AuthPayload, AuthUser, LiveSession, MarketplaceGuide, MarketplaceRequest, SessionMessage } from './types';
+export { ApiError, isRequestCancelledError } from './apiErrors';
 
 export type SessionLocationPayload = {
   label?: string;
@@ -20,7 +22,8 @@ export function setAuthToken(token: string) { authToken = token; }
 export function clearAuthToken() { authToken = ''; }
 export function setAuthFailureHandler(handler?: () => void | Promise<void>) { authFailureHandler = handler; }
 
-function friendlyApiError(status: number, raw: string) {
+function friendlyApiError(status: number, raw: string, code?: string) {
+  if (code === 'request_cancelled') return 'Traveler cancelled this walk. No session can start.';
   const message = String(raw || '').trim();
   const lower = message.toLowerCase();
   if (lower.includes('email already')) return 'That email already has an account. Switch to login, or use a fresh demo email.';
@@ -53,7 +56,11 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let data: any = {};
   try { data = await response.json(); } catch { data = {}; }
   if (response.status === 401) await authFailureHandler?.();
-  if (!response.ok || !data.ok) throw new Error(friendlyApiError(response.status, data.error));
+  if (!response.ok || !data.ok) {
+    const code = readApiErrorCode(data);
+    const rawError = typeof data.error === 'string' ? data.error : code;
+    throw new ApiError(friendlyApiError(response.status, rawError ?? '', code), response.status, code);
+  }
   return data;
 }
 
