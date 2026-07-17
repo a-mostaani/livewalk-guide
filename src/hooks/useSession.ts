@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
-import { canFetchPendingRequests, getRequestActionState, RequestPollGate, shouldReloadDashboard } from '../session/requestLifecycle';
+import { canFetchPendingRequests, getRequestActionState, normalizeActiveRequestFromSession, RequestPollGate, shouldRefreshGuideState } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -10,10 +10,10 @@ type UseSessionArgs = {
   authReady: boolean;
   authKey: string;
   online: boolean;
-  dashboardFocused: boolean;
+  screenFocusKey: string;
 };
 
-export function useSession({ enabled, authReady, authKey, online, dashboardFocused }: UseSessionArgs) {
+export function useSession({ enabled, authReady, authKey, online, screenFocusKey }: UseSessionArgs) {
   const [pendingRequests, setPendingRequests] = useState<MarketplaceRequest[]>([]);
   const [activeRequest, setActiveRequest] = useState<MarketplaceRequest | undefined>();
   const [messages, setMessages] = useState<SessionMessage[]>([]);
@@ -27,7 +27,7 @@ export function useSession({ enabled, authReady, authKey, online, dashboardFocus
   const authSnapshotRef = useRef(authSnapshot);
   const pollControlsSnapshot = `${online}`;
   const pollControlsSnapshotRef = useRef(pollControlsSnapshot);
-  const dashboardFocusedRef = useRef(dashboardFocused);
+  const screenFocusKeyRef = useRef(screenFocusKey);
 
   activeRequestRef.current = activeRequest;
 
@@ -50,11 +50,11 @@ export function useSession({ enabled, authReady, authKey, online, dashboardFocus
     }
   }, [enabled, authReady]);
 
-  const markRequestCancelled = useCallback((requestId?: string) => {
+  const markRequestCancelled = useCallback((requestId?: string, responseRequest?: MarketplaceRequest) => {
     setPendingRequests((current) => current.filter((request) => request.id !== requestId));
     setActiveRequest((current) => {
       if (!current || (requestId && current.id !== requestId)) return current;
-      return { ...current, status: 'cancelled' };
+      return { ...current, ...responseRequest, status: 'cancelled' };
     });
     setMessages([]);
     setLocationNote('Traveler cancelled this walk. GPS sharing stopped.');
@@ -103,20 +103,19 @@ export function useSession({ enabled, authReady, authKey, online, dashboardFocus
       if (!pollGate.isCurrent(snapshot) || activeRequestRef.current?.sessionId !== sessionId) return;
       setMessages(session.messages);
 
-      if (session.session.status === 'cancelled') {
-        markRequestCancelled(request.id);
+      const updatedRequest = normalizeActiveRequestFromSession(request, session);
+      if (!updatedRequest || getRequestActionState(updatedRequest).kind === 'cancelled') {
+        markRequestCancelled(request.id, updatedRequest);
         return;
       }
 
-      if (session.session.status === 'ended') {
-        setActiveRequest((current) => current?.id === request.id ? { ...current, status: 'completed' } : current);
+      setActiveRequest((current) => current?.id === request.id ? normalizeActiveRequestFromSession(current, session) : current);
+
+      if (updatedRequest.status === 'completed') {
         setLocationNote('Walk completed. GPS sharing stopped.');
         return;
       }
 
-      if (session.session.status === 'live') {
-        setActiveRequest((current) => current?.id === request.id ? { ...current, status: 'live' } : current);
-      }
     } catch (error) {
       if (!pollGate.isCurrent(snapshot) || activeRequestRef.current?.sessionId !== sessionId) return;
       if (isRequestCancelledError(error)) {
@@ -145,21 +144,21 @@ export function useSession({ enabled, authReady, authKey, online, dashboardFocus
   }, [enabled, authReady, refresh]);
 
   useEffect(() => {
-    const becameFocused = dashboardFocused && !dashboardFocusedRef.current;
-    dashboardFocusedRef.current = dashboardFocused;
-    if (becameFocused && shouldReloadDashboard({ dashboardFocused, appActive: AppState.currentState === 'active', enabled, authReady, online })) {
+    const screenChanged = screenFocusKeyRef.current !== screenFocusKey;
+    screenFocusKeyRef.current = screenFocusKey;
+    if (screenChanged && shouldRefreshGuideState({ screenFocused: screenFocusKey !== 'onboarding', appActive: AppState.currentState === 'active', enabled, authReady })) {
       void refresh();
     }
-  }, [authReady, dashboardFocused, enabled, online, refresh]);
+  }, [authReady, enabled, refresh, screenFocusKey]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && shouldReloadDashboard({ dashboardFocused, appActive: true, enabled, authReady, online })) {
+      if (nextState === 'active' && shouldRefreshGuideState({ screenFocused: screenFocusKey !== 'onboarding', appActive: true, enabled, authReady })) {
         void refresh();
       }
     });
     return () => subscription.remove();
-  }, [authReady, dashboardFocused, enabled, online, refresh]);
+  }, [authReady, enabled, refresh, screenFocusKey]);
 
   const selectRequest = useCallback((request?: MarketplaceRequest) => {
     if (!request || getRequestActionState(request).kind === 'cancelled') return false;

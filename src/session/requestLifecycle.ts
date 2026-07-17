@@ -1,4 +1,4 @@
-import type { MarketplaceRequest } from '../types';
+import type { LiveSession, MarketplaceRequest } from '../types';
 
 export const CANCELLED_WALK_TITLE = 'Traveler cancelled this walk';
 export const CANCELLED_WALK_DESCRIPTION = 'No session can start. This walk is no longer available for guide actions.';
@@ -22,6 +22,16 @@ export function filterActionableRequests(requests: MarketplaceRequest[]) {
   return requests.filter((request) => getRequestActionState(request).kind === 'actionable');
 }
 
+export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequest | undefined, snapshot: { session: Pick<LiveSession, 'status'>; request?: MarketplaceRequest }) {
+  if (!activeRequest) return undefined;
+  const responseRequest = snapshot.request?.id === activeRequest.id ? snapshot.request : undefined;
+  const request = { ...activeRequest, ...responseRequest };
+  if (request.status === 'cancelled' || snapshot.session.status === 'cancelled') return { ...request, status: 'cancelled' as const };
+  if (snapshot.session.status === 'ended') return { ...request, status: 'completed' as const };
+  if (snapshot.session.status === 'live') return { ...request, status: 'live' as const };
+  return request;
+}
+
 export function canFetchPendingRequests({ enabled, authReady, online }: { enabled: boolean; authReady: boolean; online: boolean }) {
   return enabled && authReady && online;
 }
@@ -34,6 +44,15 @@ export function shouldReloadDashboard({ dashboardFocused, appActive, enabled, au
   online: boolean;
 }) {
   return dashboardFocused && appActive && canFetchPendingRequests({ enabled, authReady, online });
+}
+
+export function shouldRefreshGuideState({ screenFocused, appActive, enabled, authReady }: {
+  screenFocused: boolean;
+  appActive: boolean;
+  enabled: boolean;
+  authReady: boolean;
+}) {
+  return screenFocused && appActive && enabled && authReady;
 }
 
 type PollSnapshot = {

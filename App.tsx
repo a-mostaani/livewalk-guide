@@ -46,7 +46,7 @@ function GuideApp() {
     authReady: !authBusy,
     authKey: token,
     online,
-    dashboardFocused: screen === 'dashboard',
+    screenFocusKey: screen,
   });
   const pendingRequests = session.pendingRequests;
   const activeRequest = session.activeRequest;

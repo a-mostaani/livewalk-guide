@@ -6,7 +6,9 @@ import {
   canFetchPendingRequests,
   filterActionableRequests,
   getRequestActionState,
+  normalizeActiveRequestFromSession,
   RequestPollGate,
+  shouldRefreshGuideState,
   shouldReloadDashboard,
 } from '../src/session/requestLifecycle';
 import type { MarketplaceRequest } from '../src/types';
@@ -62,6 +64,11 @@ describe('Guide request lifecycle', () => {
     expect(shouldReloadDashboard({ dashboardFocused: true, appActive: false, enabled: true, authReady: true, online: true })).toBe(false);
   });
 
+  it('refreshes an accepted walk when any guide workflow screen regains focus', () => {
+    expect(shouldRefreshGuideState({ screenFocused: true, appActive: true, enabled: true, authReady: true })).toBe(true);
+    expect(shouldRefreshGuideState({ screenFocused: false, appActive: true, enabled: true, authReady: true })).toBe(false);
+  });
+
   it('renders cancelled requests as non-actionable cards and removes them from actionable lists', () => {
     const cancelledRequest = { ...pendingRequest, id: 'request-cancelled', status: 'cancelled' as const };
 
@@ -79,5 +86,33 @@ describe('Guide request lifecycle', () => {
     expect(readApiErrorCode({ error: 'request_cancelled' })).toBe('request_cancelled');
     expect(isRequestCancelledError(error)).toBe(true);
     expect(isRequestCancelledError(new ApiError('Conflict', 409, 'other_conflict'))).toBe(false);
+  });
+
+  it('replaces an accepted guide card when the traveler cancellation is returned by the session poll', () => {
+    const acceptedRequest: MarketplaceRequest = {
+      ...pendingRequest,
+      id: 'request-accepted',
+      status: 'accepted',
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-1',
+    };
+    const cancelledRequest = { ...acceptedRequest, status: 'cancelled' as const };
+    const afterPoll = normalizeActiveRequestFromSession(acceptedRequest, {
+      session: { id: 'session-1', requestId: acceptedRequest.id, status: 'cancelled' },
+      request: cancelledRequest,
+    });
+
+    expect(afterPoll?.status).toBe('cancelled');
+    expect(getRequestActionState(afterPoll).kind).toBe('cancelled');
+  });
+
+  it('cancels the guide card when the session poll only exposes a cancelled request', () => {
+    const acceptedRequest = { ...pendingRequest, status: 'accepted' as const, sessionId: 'session-2' };
+    const afterPoll = normalizeActiveRequestFromSession(acceptedRequest, {
+      session: { id: 'session-2', requestId: acceptedRequest.id, status: 'ready' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    });
+
+    expect(afterPoll?.status).toBe('cancelled');
   });
 });

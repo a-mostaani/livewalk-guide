@@ -107,7 +107,7 @@ export async function endSession(sessionId: string) {
 }
 
 export async function getSessionStatus(sessionId: string) {
-  return api<{ ok: true; session: LiveSession; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/status`);
+  return api<{ ok: true; session: LiveSession; request?: MarketplaceRequest; messages: SessionMessage[] }>(`/api/sessions/${sessionId}/status`);
 }
 
 export async function sendSessionMessage(sessionId: string, text: string) {
