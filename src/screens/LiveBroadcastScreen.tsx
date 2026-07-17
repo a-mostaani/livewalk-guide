@@ -3,9 +3,11 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
 import { Button, Card, colors } from '../components/Primitives';
+import { CancelledWalkState } from '../components/CancelledWalkState';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
 import { formatDuration } from '../format';
+import { getRequestActionState } from '../session/requestLifecycle';
 
 export function LiveBroadcastScreen({
   request,
@@ -20,17 +22,33 @@ export function LiveBroadcastScreen({
   messages: SessionMessage[];
   locationNote?: string;
   onSendMessage: (text: string) => Promise<void>;
-  onEnd: () => void;
+  onEnd: () => Promise<boolean>;
 }) {
   const [talking, setTalking] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [actionNote, setActionNote] = useState('Hold to talk sends guide voice-status events to the traveler.');
-  const sessionReady = Boolean(request?.sessionId);
+  const actionState = getRequestActionState(request);
+  const walkEnded = request?.status === 'completed';
+  const sessionReady = Boolean(request?.sessionId && request?.status === 'live' && actionState.kind === 'actionable');
   const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
   );
+
+  if (actionState.kind === 'cancelled') {
+    return (
+      <View>
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.kicker}>Shared live broadcast</Text>
+            <Text style={styles.title}>{actionState.title}</Text>
+          </View>
+        </View>
+        <CancelledWalkState />
+      </View>
+    );
+  }
 
   const sendSessionEvent = async (text: string, success: string) => {
     if (!sessionReady) {
@@ -61,6 +79,17 @@ export function LiveBroadcastScreen({
     void sendSessionEvent('🎙️ Guide finished talking.', 'Talk status ended.');
   };
 
+  const endWalk = async () => {
+    if (!sessionReady) return;
+    const ended = await onEnd();
+    if (ended) {
+      setActionNote('Walk ended for both sides. Opening earnings.');
+      return;
+    }
+    setActionNote('The walk is still live. Please retry ending it.');
+    Alert.alert('Walk still live', 'We could not end the shared walk. Check your connection and retry.');
+  };
+
   return (
     <View>
       <View style={styles.topBar}>
@@ -68,7 +97,7 @@ export function LiveBroadcastScreen({
           <Text style={styles.kicker}>Shared live broadcast</Text>
           <Text style={styles.title}>{request?.route ?? 'Shibuya → Meiji Shrine'}</Text>
         </View>
-        <View style={styles.timerPill}><Text style={styles.timerText}>{request?.status === 'live' ? 'LIVE' : 'Ready'}</Text></View>
+        <View style={styles.timerPill}><Text style={styles.timerText}>{walkEnded ? 'ENDED' : (request?.status === 'live' ? 'LIVE' : 'Ready')}</Text></View>
       </View>
       <BroadcasterPlaceholder guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
       {latestTravelerAlert ? (
@@ -85,22 +114,22 @@ export function LiveBroadcastScreen({
       <Card style={styles.controlCard}>
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, paused && styles.statusDotPaused]} />
-          <Text style={styles.statusText}>{paused ? 'Stream paused locally' : 'Shared session active for traveler'}</Text>
+          <Text style={styles.statusText}>{walkEnded ? 'Walk ended. Earnings are ready.' : (paused ? 'Stream paused locally' : 'Shared session active for traveler')}</Text>
         </View>
         <View style={styles.controlGrid}>
           <TouchableOpacity
             activeOpacity={0.82}
             onPressIn={startTalking}
             onPressOut={stopTalking}
-            disabled={!sessionReady}
+            disabled={!sessionReady || walkEnded}
             style={[styles.holdButton, talking && styles.holdButtonActive, !sessionReady && styles.controlDisabled, styles.controlButton]}
           >
             <Ionicons name={talking ? 'mic' : 'mic-outline'} size={18} color={talking ? colors.white : colors.ink} />
             <Text style={[styles.holdButtonText, talking && styles.holdButtonTextActive]}>{talking ? 'Talking…' : 'Hold to talk'}</Text>
           </TouchableOpacity>
-          <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} disabled={!sessionReady} style={styles.controlButton} />
-          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={() => setPaused((value) => !value)} disabled={!sessionReady} style={styles.controlButton} />
-          <Button label="End walk" icon="stop-circle" variant="danger" onPress={onEnd} style={styles.controlButton} />
+          <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
+          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={() => setPaused((value) => !value)} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
+          <Button label={walkEnded ? 'Walk ended' : 'End walk'} icon="stop-circle" variant="danger" onPress={() => void endWalk()} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
         </View>
         <Text style={styles.actionNote}>{sessionReady ? actionNote : 'Controls unlock after the shared live session starts.'}</Text>
       </Card>

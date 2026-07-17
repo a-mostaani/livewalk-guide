@@ -67,6 +67,10 @@ npx expo start --dev-client
 
 For the current demo APKs, keep using the published installable Android builds from the LiveWalk APK download page. The existing demo flow should behave the same; LW-8 only adds the native foundation.
 
+## Runtime configuration
+
+Copy `.env.example` to `.env` for local development, or set the same variables in the EAS build environment selected by the profile (`development`, `preview`, or `production`). `app.config.js` reads `MAPBOX_TOKEN_MOBILE` during EAS configuration and writes it to `extra.mapboxTokenMobile`, which the Android and iOS runtime selects. Use the real restricted public Mapbox token in EAS only; never commit it or substitute a fallback token. `LIVEKIT_WS_URL` is a public WebSocket endpoint and is copied into `extra.livekitWsUrl`; it identifies the LiveKit server but does not authorize a room connection. Keep LiveKit API credentials and all signing material out of this app.
+
 ## Useful development commands
 
 ```bash

@@ -17,6 +17,7 @@ import { RatingsProfileScreen } from './src/screens/RatingsProfileScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { useSession } from './src/hooks/useSession';
+import { getRequestActionState } from './src/session/requestLifecycle';
 import { Screen } from './src/types';
 
 const screenOrder: Screen[] = ['onboarding', 'dashboard', 'request', 'route', 'checklist', 'live', 'earnings', 'schedule', 'ratings'];
@@ -34,19 +35,27 @@ const screenLabels: Record<Screen, string> = {
 };
 
 function GuideApp() {
-  const { user, busy: authBusy } = useAuth();
+  const { user, token, busy: authBusy } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [online, setOnline] = useState(true);
   const [checklistReady, setChecklistReady] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const guideName = user?.name?.trim() || 'Guide';
-  const session = useSession({ enabled: Boolean(user), online });
+  const session = useSession({
+    enabled: Boolean(user),
+    authReady: !authBusy,
+    authKey: token,
+    online,
+    screenFocusKey: screen,
+  });
   const pendingRequests = session.pendingRequests;
   const activeRequest = session.activeRequest;
   const messages = session.messages;
   const apiOnline = session.apiOnline;
   const apiNote = session.apiNote;
   const busy = session.busy;
+  const walkEnded = session.walkEnded;
+  const travelerCancelled = getRequestActionState(activeRequest).kind === 'cancelled';
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -57,8 +66,19 @@ function GuideApp() {
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   };
 
+  useEffect(() => {
+    if (walkEnded && screen === 'live') {
+      setScreen('earnings');
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+    }
+  }, [screen, walkEnded]);
+
   const goPrevious = () => { if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]); };
   const goNext = () => {
+    if (travelerCancelled) {
+      navigateTo('dashboard');
+      return;
+    }
     if (screen === 'checklist') {
       if (!checklistReady) return;
       startLive();
@@ -66,9 +86,9 @@ function GuideApp() {
     }
     navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]);
   };
-  const nextDisabled = screen === 'checklist' && !checklistReady;
-  const nextLabel = screen === 'checklist' && !checklistReady ? 'Complete checks' : (isLastScreen ? 'Dashboard' : 'Next');
-  const nextIcon = screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward');
+  const nextDisabled = !travelerCancelled && screen === 'checklist' && !checklistReady;
+  const nextLabel = travelerCancelled ? 'Dashboard' : (screen === 'checklist' && !checklistReady ? 'Complete checks' : (isLastScreen ? 'Dashboard' : 'Next'));
+  const nextIcon = travelerCancelled ? 'speedometer' : (screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward'));
 
   const viewRequest = () => {
     const selected = session.selectRequest(pendingRequests[0]);
@@ -95,6 +115,12 @@ function GuideApp() {
 
   const sendGuideMessage = async (text: string) => {
     await session.sendMessage(text);
+  };
+
+  const endLive = async () => {
+    const ended = await session.endLive();
+    if (ended) navigateTo('earnings');
+    return ended;
   };
 
   useEffect(() => {
@@ -147,7 +173,7 @@ function GuideApp() {
                 {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
                 {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
                 {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
-                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={() => navigateTo('earnings')} /> : null}
+                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
                 {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                 {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
                 {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}

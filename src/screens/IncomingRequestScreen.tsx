@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap } from '../components/GuideVisuals';
+import { CancelledWalkState } from '../components/CancelledWalkState';
+import { getRequestActionState } from '../session/requestLifecycle';
 import { MarketplaceRequest } from '../api';
 import { formatDuration, formatEstimateTotal, formatScheduledStart } from '../format';
 
@@ -17,6 +19,16 @@ export function IncomingRequestScreen({ request, busy = false, onAccept, onDecli
   }
 
   const travelerName = request.travelerName?.trim() || 'Traveler';
+  const actionState = getRequestActionState(request);
+
+  if (actionState.kind === 'cancelled') {
+    return (
+      <View>
+        <Header kicker="Incoming request" title={actionState.title} body={actionState.description} />
+        <CancelledWalkState />
+      </View>
+    );
+  }
 
   return (
     <View>

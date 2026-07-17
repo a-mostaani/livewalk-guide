@@ -73,19 +73,28 @@ export type MarketplaceRequest = {
   language: string;
   interests: string[];
   estimate: Estimate;
-  status: 'pending' | 'accepted' | 'declined' | 'live';
+  status: 'pending' | 'accepted' | 'declined' | 'live' | 'completed' | 'cancelled';
   guide: MarketplaceGuide | null;
   sessionId: string | null;
   createdAt: string;
   updatedAt: string;
+  requestCancellation?: unknown;
+  cancellation?: unknown;
+  requestCancellationReason?: unknown;
+  cancellationReason?: unknown;
 };
 
 export type LiveSession = {
   id: string;
   requestId: string;
-  status: 'ready' | 'live';
+  status: 'ready' | 'live' | 'ended' | 'cancelled';
   startedAt?: string | null;
+  endedAt?: string | null;
   location?: { label?: string; lat?: number; lng?: number; accuracy?: number | null; timestamp?: string; progress?: number } | null;
+  requestCancellation?: unknown;
+  cancellation?: unknown;
+  requestCancellationReason?: unknown;
+  cancellationReason?: unknown;
 };
 
 export type SessionMessage = {
