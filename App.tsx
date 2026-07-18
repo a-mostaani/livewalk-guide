@@ -18,7 +18,7 @@ import { RatingsProfileScreen } from './src/screens/RatingsProfileScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { useSession } from './src/hooks/useSession';
-import { getGuideWorkflowRenderState } from './src/session/requestLifecycle';
+import { getGuideScreenRenderPlan, isGuideWorkflowScreen } from './src/session/requestLifecycle';
 import { Screen } from './src/types';
 
 const screenOrder: Screen[] = ['onboarding', 'dashboard', 'request', 'route', 'checklist', 'live', 'earnings', 'schedule', 'ratings'];
@@ -34,8 +34,6 @@ const screenLabels: Record<Screen, string> = {
   schedule: 'Books',
   ratings: 'Rating',
 };
-
-const cancelledWorkflowScreens: Screen[] = ['request', 'route', 'checklist', 'live'];
 
 function GuideApp() {
   const { user, token, busy: authBusy } = useAuth();
@@ -58,15 +56,15 @@ function GuideApp() {
   const apiNote = session.apiNote;
   const busy = session.busy;
   const walkEnded = session.walkEnded;
-  const workflowRenderState = getGuideWorkflowRenderState(activeRequest);
-  const travelerCancelled = !workflowRenderState.renderActionableControls;
+  const screenRenderPlan = getGuideScreenRenderPlan(screen, activeRequest);
+  const travelerCancelled = screenRenderPlan.travelerCancelled;
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
   const isLastScreen = currentIndex === screenOrder.length - 1;
 
   const navigateTo = (nextScreen: Screen) => {
-    if (travelerCancelled && cancelledWorkflowScreens.includes(nextScreen)) return;
+    if (travelerCancelled && isGuideWorkflowScreen(nextScreen)) return;
     setScreen(nextScreen);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
   };
@@ -79,17 +77,9 @@ function GuideApp() {
   }, [screen, walkEnded]);
 
   const goPrevious = () => {
-    if (travelerCancelled) {
-      navigateTo('dashboard');
-      return;
-    }
     if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]);
   };
   const goNext = () => {
-    if (travelerCancelled) {
-      navigateTo('dashboard');
-      return;
-    }
     if (screen === 'checklist') {
       if (!checklistReady) return;
       startLive();
@@ -97,9 +87,9 @@ function GuideApp() {
     }
     navigateTo(isLastScreen ? 'dashboard' : screenOrder[currentIndex + 1]);
   };
-  const nextDisabled = !travelerCancelled && screen === 'checklist' && !checklistReady;
-  const nextLabel = travelerCancelled ? 'Dashboard' : (screen === 'checklist' && !checklistReady ? 'Complete checks' : (isLastScreen ? 'Dashboard' : 'Next'));
-  const nextIcon = travelerCancelled ? 'speedometer' : (screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward'));
+  const nextDisabled = screen === 'checklist' && !checklistReady;
+  const nextLabel = screen === 'checklist' && !checklistReady ? 'Complete checks' : (isLastScreen ? 'Dashboard' : 'Next');
+  const nextIcon = screen === 'checklist' && !checklistReady ? 'lock-closed' : (isLastScreen ? 'speedometer' : 'chevron-forward');
 
   const viewRequest = () => {
     const selected = session.selectRequest(pendingRequests[0]);
@@ -165,7 +155,7 @@ function GuideApp() {
           {user ? <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
-              const disabled = travelerCancelled && cancelledWorkflowScreens.includes(item);
+              const disabled = travelerCancelled && isGuideWorkflowScreen(item);
               return (
                 <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: active, disabled }} accessibilityLabel={`Open ${screenLabels[item]} step`} hitSlop={6} disabled={disabled} onPress={() => navigateTo(item)} style={({ pressed }) => [styles.stepItem, disabled && styles.stepItemDisabled, pressed && styles.stepItemPressed]}>
                   <View style={[styles.stepDot, index <= currentIndex && styles.stepDotActive]} />
@@ -184,30 +174,25 @@ function GuideApp() {
             ) : !user ? (
               <AuthScreen />
             ) : (
-              <>
-                {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
-                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} guideCity={user?.city} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
-                {travelerCancelled && cancelledWorkflowScreens.includes(screen) ? <CancelledWalkState /> : null}
-                {!travelerCancelled && screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
-                {!travelerCancelled && screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
-                {!travelerCancelled && screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
-                {!travelerCancelled && screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
-                {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
-                {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
-                {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
-              </>
+              screenRenderPlan.renderCancelledState ? <CancelledWalkState /> : (
+                <>
+                  {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
+                  {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} guideCity={user?.city} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
+                  {screenRenderPlan.renderIncomingRequest ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
+                  {screenRenderPlan.renderRouteDetails ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
+                  {screenRenderPlan.renderChecklist ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
+                  {screenRenderPlan.renderLiveBroadcast ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
+                  {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
+                  {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
+                  {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
+                </>
+              )
             )}
           </ScrollView>
-          {user && (!travelerCancelled || screen !== 'dashboard') ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
+          {user && screenRenderPlan.renderBottomNavigation ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
             <View style={styles.bottomNav}>
-              {travelerCancelled ? (
-                <Button label="Back to dashboard" icon="speedometer" onPress={() => navigateTo('dashboard')} style={styles.navButton} />
-              ) : (
-                <>
-                  <Button label="Previous" icon="chevron-back" variant="secondary" onPress={goPrevious} disabled={isFirstScreen} style={styles.navButton} />
-                  <Button label={nextLabel} icon={nextIcon} onPress={goNext} disabled={nextDisabled} style={styles.navButton} />
-                </>
-              )}
+              <Button label="Previous" icon="chevron-back" variant="secondary" onPress={goPrevious} disabled={isFirstScreen} style={styles.navButton} />
+              <Button label={nextLabel} icon={nextIcon} onPress={goNext} disabled={nextDisabled} style={styles.navButton} />
             </View>
           </SafeAreaView> : null}
         </View>

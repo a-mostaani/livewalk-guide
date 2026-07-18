@@ -1,4 +1,4 @@
-import type { LiveSession, MarketplaceRequest } from '../types';
+import type { LiveSession, MarketplaceRequest, Screen } from '../types';
 
 export const CANCELLED_WALK_TITLE = 'Traveler cancelled this walk';
 export const CANCELLED_WALK_DESCRIPTION = 'No session can start. This walk is no longer available for guide actions.';
@@ -10,6 +10,18 @@ export type RequestActionState =
 export type GuideWorkflowRenderState =
   | { kind: 'actionable'; renderActionableControls: true }
   | { kind: 'cancelled'; renderActionableControls: false; title: typeof CANCELLED_WALK_TITLE; description: typeof CANCELLED_WALK_DESCRIPTION };
+
+export type GuideScreenRenderPlan = {
+  travelerCancelled: boolean;
+  renderCancelledState: boolean;
+  renderIncomingRequest: boolean;
+  renderRouteDetails: boolean;
+  renderChecklist: boolean;
+  renderLiveBroadcast: boolean;
+  renderBottomNavigation: boolean;
+};
+
+export const GUIDE_WORKFLOW_SCREENS: Screen[] = ['request', 'route', 'checklist', 'live'];
 
 export type GuideRequestIdentity = {
   requestId?: string;
@@ -97,6 +109,24 @@ export function getGuideWorkflowRenderState(request?: Pick<MarketplaceRequest, '
   const actionState = getRequestActionState(request);
   if (actionState.kind === 'cancelled') return { ...actionState, renderActionableControls: false };
   return { kind: 'actionable', renderActionableControls: true };
+}
+
+export function isGuideWorkflowScreen(screen: Screen) {
+  return GUIDE_WORKFLOW_SCREENS.includes(screen);
+}
+
+export function getGuideScreenRenderPlan(screen: Screen, request?: Pick<MarketplaceRequest, 'status'> & CancellationSignalCarrier): GuideScreenRenderPlan {
+  const travelerCancelled = !getGuideWorkflowRenderState(request).renderActionableControls;
+  const renderCancelledState = travelerCancelled && isGuideWorkflowScreen(screen);
+  return {
+    travelerCancelled,
+    renderCancelledState,
+    renderIncomingRequest: screen === 'request' && !travelerCancelled,
+    renderRouteDetails: screen === 'route' && !travelerCancelled,
+    renderChecklist: screen === 'checklist' && !travelerCancelled,
+    renderLiveBroadcast: screen === 'live' && !travelerCancelled,
+    renderBottomNavigation: !travelerCancelled,
+  };
 }
 
 export function shouldPollGuideSession(request?: MarketplaceRequest) {

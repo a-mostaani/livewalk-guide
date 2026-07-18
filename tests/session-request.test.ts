@@ -9,6 +9,7 @@ import {
   filterActionableRequests,
   filterGuidePendingRequests,
   getRequestActionState,
+  getGuideScreenRenderPlan,
   getGuideWorkflowRenderState,
   GuideCancellationLatch,
   normalizeActiveRequestFromSession,
@@ -267,6 +268,30 @@ describe('Guide request lifecycle', () => {
     expect(lateSessionPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
     expect(lateAction).toMatchObject({ status: 'cancelled' });
     expect(getGuideWorkflowRenderState(lateAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
+  });
+
+  it('replaces a stale selected incoming request with the terminal branch and no controls', () => {
+    const staleSelectedRequest = { ...pendingRequest, id: 'request-selected-then-cancelled' };
+    const cancellationLatch = new GuideCancellationLatch();
+    const missingSelection = resolveGuidePendingSelection(staleSelectedRequest, [], cancellationLatch);
+
+    expect(missingSelection.kind).toBe('missing');
+    const cancelledDetail = resolveGuideRequestDetail(staleSelectedRequest, {
+      request: { ...staleSelectedRequest, status: 'cancelled' },
+      session: null,
+    }, cancellationLatch);
+    expect(cancelledDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancelledDetail.kind !== 'cancelled') return;
+
+    expect(getGuideScreenRenderPlan('request', cancelledDetail.request)).toEqual({
+      travelerCancelled: true,
+      renderCancelledState: true,
+      renderIncomingRequest: false,
+      renderRouteDetails: false,
+      renderChecklist: false,
+      renderLiveBroadcast: false,
+      renderBottomNavigation: false,
+    });
   });
 
   type CancellationSignal = {
