@@ -250,6 +250,12 @@ describe('Guide request lifecycle', () => {
     expect(cancellationLatch.matches({ sessionId })).toBe(true);
     expect(filterGuidePendingRequests([selectedRequest], cancellationLatch)).toEqual([]);
 
+    const pollGate = new RequestPollGate();
+    const initialListPoll = pollGate.beginPoll();
+    pollGate.accept(initialListPoll, [selectedRequest]);
+    pollGate.remove(selectedRequest.id);
+    expect(pollGate.retain(pollGate.beginPoll())).toEqual({ kind: 'retained', requests: [] });
+
     if (cancelledDetail.kind !== 'cancelled') return;
     const staleReadyRequest = { ...selectedRequest, status: 'accepted' as const, sessionId };
     const lateSessionPoll = resolveGuideSessionPoll(cancelledDetail.request, {
