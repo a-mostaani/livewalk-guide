@@ -21,6 +21,9 @@ export type GuideScreenContent = {
   travelerCancelled: boolean;
   mountsIncomingRequest: boolean;
   mountsIncomingRequestActions: boolean;
+  mountsRouteDetails: boolean;
+  mountsChecklist: boolean;
+  mountsLiveBroadcast: boolean;
   mountsBottomNavigation: boolean;
 };
 
@@ -140,8 +143,15 @@ export function getGuideScreenContent(screen: Screen, selectedRequestState: Guid
     travelerCancelled,
     mountsIncomingRequest: screen === 'request' && !terminalWorkflowScreen,
     mountsIncomingRequestActions: screen === 'request' && !terminalWorkflowScreen,
+    mountsRouteDetails: screen === 'route' && !terminalWorkflowScreen,
+    mountsChecklist: screen === 'checklist' && !terminalWorkflowScreen,
+    mountsLiveBroadcast: screen === 'live' && !terminalWorkflowScreen,
     mountsBottomNavigation: !travelerCancelled,
   };
+}
+
+export function shouldPollGuideRequest(request?: MarketplaceRequest) {
+  return Boolean(request && canRunGuideWalkAction(request));
 }
 
 export function shouldPollGuideSession(request?: MarketplaceRequest) {
@@ -169,6 +179,22 @@ function latchCancelledRequest(request: MarketplaceRequest, sessionId: string | 
   return cancelledGuideRequest(request);
 }
 
+const GUIDE_REQUEST_PROGRESS: Record<MarketplaceRequest['status'], number> = {
+  pending: 0,
+  accepted: 1,
+  declined: 2,
+  live: 3,
+  completed: 4,
+  cancelled: 5,
+};
+
+function isOlderGuideRequestSnapshot(current: MarketplaceRequest, next: MarketplaceRequest) {
+  const currentUpdatedAt = Date.parse(current.updatedAt);
+  const nextUpdatedAt = Date.parse(next.updatedAt);
+  if (Number.isFinite(currentUpdatedAt) && Number.isFinite(nextUpdatedAt) && nextUpdatedAt < currentUpdatedAt) return true;
+  return GUIDE_REQUEST_PROGRESS[next.status] < GUIDE_REQUEST_PROGRESS[current.status];
+}
+
 export function resolveGuidePendingSelection(activeRequest: MarketplaceRequest | undefined, pendingRequests: MarketplaceRequest[], cancellationLatch?: GuideCancellationLatch): GuidePendingSelectionResolution {
   if (!activeRequest) return { kind: 'current' };
   const selectedRequestState = getGuideSelectedRequestState(activeRequest, pendingRequests, cancellationLatch);
@@ -189,6 +215,7 @@ export function resolveGuideRequestDetail(activeRequest: MarketplaceRequest | un
     || snapshot.session?.status === 'cancelled'
     || hasCancellationReason(snapshot.session ?? undefined)
   ) return { kind: 'cancelled', request: latchCancelledRequest(request, sessionId, cancellationLatch) };
+  if (isOlderGuideRequestSnapshot(activeRequest, snapshot.request)) return { kind: 'ignored' };
   return { kind: 'updated', request };
 }
 

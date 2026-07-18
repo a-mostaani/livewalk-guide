@@ -1,8 +1,8 @@
 import { AppState } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
-import { applyGuideActiveRequestUpdate, canFetchPendingRequests, canRunGuideWalkAction, filterGuidePendingRequests, getGuideSelectedRequestState, getRequestActionState, GuideCancellationLatch, normalizeActiveRequestFromSession, RequestPollGate, resolveGuidePendingSelection, resolveGuideSessionPoll, SingleFlightPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
+import { acceptRequest, declineRequest, endSession, getRequest, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
+import { applyGuideActiveRequestUpdate, canFetchPendingRequests, canRunGuideWalkAction, filterGuidePendingRequests, getGuideSelectedRequestState, getRequestActionState, GuideCancellationLatch, normalizeActiveRequestFromSession, RequestPollGate, resolveGuidePendingSelection, resolveGuideRequestDetail, resolveGuideSessionPoll, SingleFlightPoll, shouldPollGuideRequest, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -123,6 +123,31 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
         setApiOnline(false);
         setApiNote('Request list reconnecting');
         pollGate.retain(snapshot);
+      }
+    }
+
+    const selectedRequest = activeRequestRef.current;
+    if (selectedRequest && !cancellationLatchRef.current.matches({ requestId: selectedRequest.id, sessionId: selectedRequest.sessionId }) && shouldPollGuideRequest(selectedRequest)) {
+      try {
+        const detail = await getRequest(selectedRequest.id);
+        if (activeRequestRef.current?.id !== selectedRequest.id) return;
+
+        const detailResolution = resolveGuideRequestDetail(activeRequestRef.current, detail, cancellationLatchRef.current);
+        if (detailResolution.kind === 'cancelled') {
+          markRequestCancelled(detailResolution.request.id, detailResolution.request, detail.session?.id);
+          return;
+        }
+        if (detailResolution.kind === 'updated' && pollGate.isCurrent(snapshot)) {
+          if (!updateActiveRequest(detailResolution.request.id, detailResolution.request)) return;
+        }
+      } catch (error) {
+        if (isRequestCancelledError(error)) {
+          markRequestCancelled(selectedRequest.id, undefined, selectedRequest.sessionId);
+          return;
+        }
+        if (!pollGate.isCurrent(snapshot)) return;
+        setApiOnline(false);
+        setApiNote('Request status reconnecting');
       }
     }
 

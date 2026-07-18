@@ -19,6 +19,7 @@ import {
   resolveGuideRequestDetail,
   SingleFlightPoll,
   resolveGuideSessionPoll,
+  shouldPollGuideRequest,
   shouldPollGuideSession,
   shouldRefreshGuideState,
   shouldReloadDashboard,
@@ -190,9 +191,11 @@ describe('Guide request lifecycle', () => {
 
     expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
     if (cancelledPoll.kind === 'cancelled') {
+      expect(shouldPollGuideRequest(cancelledPoll.request)).toBe(false);
       expect(shouldPollGuideSession(cancelledPoll.request)).toBe(false);
       expect(canRunGuideWalkAction(cancelledPoll.request)).toBe(false);
     }
+    expect(shouldPollGuideRequest(acceptedRequest)).toBe(true);
     expect(shouldPollGuideSession(acceptedRequest)).toBe(true);
     expect(canRunGuideWalkAction(acceptedRequest)).toBe(true);
   });
@@ -272,6 +275,52 @@ describe('Guide request lifecycle', () => {
     expect(getGuideWorkflowRenderState(lateAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
   });
 
+  it('renders the selected accepted Ready screen as cancelled with zero workflow controls after a stale ready response', () => {
+    const acceptedReadyRequest = {
+      ...pendingRequest,
+      id: 'request-ready-cancelled-by-traveler',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-ready-cancelled-by-traveler',
+    };
+    const cancellationLatch = new GuideCancellationLatch();
+
+    expect(getGuideScreenContent('checklist', getGuideSelectedRequestState(acceptedReadyRequest, [], cancellationLatch))).toMatchObject({
+      kind: 'content',
+      mountsChecklist: true,
+      mountsBottomNavigation: true,
+    });
+
+    const cancellationDetail = resolveGuideRequestDetail(acceptedReadyRequest, {
+      request: { ...acceptedReadyRequest, status: 'cancelled' },
+      session: { id: acceptedReadyRequest.sessionId, status: 'ready' },
+    }, cancellationLatch);
+
+    expect(cancellationDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancellationDetail.kind !== 'cancelled') return;
+    expect(cancellationLatch.matches({ requestId: acceptedReadyRequest.id, sessionId: acceptedReadyRequest.sessionId })).toBe(true);
+
+    const lateReadyResponse = resolveGuideSessionPoll(cancellationDetail.request, {
+      session: { id: acceptedReadyRequest.sessionId, requestId: acceptedReadyRequest.id, status: 'ready' },
+      request: acceptedReadyRequest,
+    }, true, cancellationLatch);
+    expect(lateReadyResponse).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (lateReadyResponse.kind !== 'cancelled') return;
+
+    expect(getGuideScreenContent('checklist', getGuideSelectedRequestState(lateReadyResponse.request, [], cancellationLatch))).toEqual({
+      kind: 'cancelled',
+      travelerCancelled: true,
+      mountsIncomingRequest: false,
+      mountsIncomingRequestActions: false,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
+      mountsBottomNavigation: false,
+    });
+    expect(shouldPollGuideRequest(lateReadyResponse.request)).toBe(false);
+    expect(shouldPollGuideSession(lateReadyResponse.request)).toBe(false);
+  });
+
   it('keeps the mounted Incoming Request screen terminal after Traveler cancellation removes a selected pending request', () => {
     const staleSelectedRequest = { ...pendingRequest, id: 'request-selected-then-cancelled' };
     const cancellationLatch = new GuideCancellationLatch();
@@ -281,6 +330,9 @@ describe('Guide request lifecycle', () => {
       travelerCancelled: false,
       mountsIncomingRequest: true,
       mountsIncomingRequestActions: true,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
       mountsBottomNavigation: true,
     });
 
@@ -294,6 +346,9 @@ describe('Guide request lifecycle', () => {
       travelerCancelled: true,
       mountsIncomingRequest: false,
       mountsIncomingRequestActions: false,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
       mountsBottomNavigation: false,
     });
 

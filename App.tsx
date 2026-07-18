@@ -36,11 +36,6 @@ const screenLabels: Record<Screen, string> = {
   ratings: 'Rating',
 };
 
-function GuideScreenBoundary({ content, children }: { content: GuideScreenContent; children: React.ReactNode }) {
-  if (content.kind === 'cancelled') return <CancelledWalkState />;
-  return <>{children}</>;
-}
-
 function GuideApp() {
   const { user, token, busy: authBusy } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
@@ -181,19 +176,19 @@ function GuideApp() {
             ) : !user ? (
               <AuthScreen />
             ) : (
-              <GuideScreenBoundary content={screenContent}>
+              screenContent.kind === 'cancelled' ? <CancelledWalkState /> : (
                 <>
                   {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
                   {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} guideCity={user?.city} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
                   {screenContent.mountsIncomingRequest ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
-                  {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
-                  {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
-                  {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
+                  {screenContent.mountsRouteDetails ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
+                  {screenContent.mountsChecklist ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
+                  {screenContent.mountsLiveBroadcast ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
                   {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                   {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
                   {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}
                 </>
-              </GuideScreenBoundary>
+              )
             )}
           </ScrollView>
           {user && screenContent.mountsBottomNavigation ? <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']}>
