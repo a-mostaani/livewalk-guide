@@ -1,16 +1,35 @@
 const DEFAULT_API_BASE_URL = 'https://rendezvous-livewalk-api.webpeter.com';
+const QA_BUILD_CHANNEL = 'qa';
 
 function cleanUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
-module.exports = ({ config }) => {
+function resolveQaBuildMetadata(env = process.env) {
+  if (env.LIVEWALK_BUILD_CHANNEL?.trim() !== QA_BUILD_CHANNEL) return undefined;
+
+  const commit = env.LIVEWALK_BUILD_COMMIT?.trim().slice(0, 7);
+  const branch = env.LIVEWALK_BUILD_BRANCH?.trim();
+  const purpose = env.LIVEWALK_BUILD_PURPOSE?.trim();
+
+  if (!commit || !branch || !purpose) return undefined;
+
+  return {
+    commit,
+    branch,
+    purpose,
+    label: `QA BUILD · ${commit} · ${branch} · ${purpose}`,
+  };
+}
+
+function createAppConfig(config, env = process.env) {
   const apiBaseUrl = cleanUrl(
-    process.env.LIVEWALK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
+    env.LIVEWALK_API_BASE_URL ?? env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
   );
-  const livekitWsUrl = cleanUrl(process.env.LIVEKIT_WS_URL?.trim() ?? '');
-  const mapboxTokenWeb = process.env.MAPBOX_TOKEN_WEB?.trim();
-  const mapboxTokenMobile = process.env.MAPBOX_TOKEN_MOBILE?.trim();
+  const livekitWsUrl = cleanUrl(env.LIVEKIT_WS_URL?.trim() ?? '');
+  const mapboxTokenWeb = env.MAPBOX_TOKEN_WEB?.trim();
+  const mapboxTokenMobile = env.MAPBOX_TOKEN_MOBILE?.trim();
+  const qaBuild = resolveQaBuildMetadata(env);
 
   return {
     ...config,
@@ -40,6 +59,16 @@ module.exports = ({ config }) => {
       livekitWsUrl,
       mapboxTokenWeb,
       mapboxTokenMobile,
+      ...(qaBuild ? { qaBuild } : {}),
     },
   };
-};
+}
+
+function appConfig({ config }) {
+  return createAppConfig(config);
+}
+
+appConfig.createAppConfig = createAppConfig;
+appConfig.resolveQaBuildMetadata = resolveQaBuildMetadata;
+
+module.exports = appConfig;

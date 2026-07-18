@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { API_BASE } from './src/api';
 import { AuthProvider, useAuth } from './src/auth/AuthContext';
 import { Button, colors } from './src/components/Primitives';
+import { QaBuildBadge } from './src/components/QaBuildBadge';
 import { CancelledWalkState } from './src/components/CancelledWalkState';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { ChecklistScreen } from './src/screens/ChecklistScreen';
@@ -157,6 +158,7 @@ function GuideApp() {
             </View>
           </View>
           <Text style={styles.backendLine} numberOfLines={1}>{user ? `${user.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
+          {user ? <QaBuildBadge /> : null}
           {user ? <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
