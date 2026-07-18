@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, isRequestCancelledError, readApiErrorCode } from '../src/apiErrors';
 import {
+  applyGuideActiveRequestUpdate,
   CANCELLED_WALK_DESCRIPTION,
   CANCELLED_WALK_TITLE,
   canFetchPendingRequests,
   canRunGuideWalkAction,
   filterActionableRequests,
   getRequestActionState,
+  getGuideWorkflowRenderState,
   normalizeActiveRequestFromSession,
   RequestPollGate,
   SingleFlightPoll,
@@ -187,6 +189,42 @@ describe('Guide request lifecycle', () => {
     }
     expect(shouldPollGuideSession(acceptedRequest)).toBe(true);
     expect(canRunGuideWalkAction(acceptedRequest)).toBe(true);
+  });
+
+  it('keeps a cancelled-before-start workflow terminal when an older ready response finishes later', () => {
+    const acceptedRequest = {
+      ...pendingRequest,
+      id: 'request-terminal-render-state',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-terminal-render-state',
+    };
+    const cancellation = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'cancelled' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    }, true);
+
+    expect(cancellation.kind).toBe('cancelled');
+    if (cancellation.kind !== 'cancelled') return;
+
+    const staleReadyResponse = resolveGuideSessionPoll(cancellation.request, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: acceptedRequest,
+    }, true);
+    const stateAfterStaleAction = applyGuideActiveRequestUpdate(cancellation.request, acceptedRequest.id, acceptedRequest);
+    const readyRequest = normalizeActiveRequestFromSession(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: acceptedRequest,
+    });
+
+    expect(staleReadyResponse).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    expect(stateAfterStaleAction).toMatchObject({ status: 'cancelled' });
+    expect(getGuideWorkflowRenderState(stateAfterStaleAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
+    expect(canRunGuideWalkAction(stateAfterStaleAction)).toBe(false);
+    expect(getGuideWorkflowRenderState(pendingRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState(acceptedRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState(readyRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState({ ...acceptedRequest, status: 'live' }).renderActionableControls).toBe(true);
   });
 
   type CancellationSignal = {

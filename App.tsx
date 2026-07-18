@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { API_BASE } from './src/api';
 import { AuthProvider, useAuth } from './src/auth/AuthContext';
 import { Button, colors } from './src/components/Primitives';
+import { CancelledWalkState } from './src/components/CancelledWalkState';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { ChecklistScreen } from './src/screens/ChecklistScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -17,7 +18,7 @@ import { RatingsProfileScreen } from './src/screens/RatingsProfileScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
 import { useSession } from './src/hooks/useSession';
-import { getRequestActionState } from './src/session/requestLifecycle';
+import { getGuideWorkflowRenderState } from './src/session/requestLifecycle';
 import { Screen } from './src/types';
 
 const screenOrder: Screen[] = ['onboarding', 'dashboard', 'request', 'route', 'checklist', 'live', 'earnings', 'schedule', 'ratings'];
@@ -57,7 +58,8 @@ function GuideApp() {
   const apiNote = session.apiNote;
   const busy = session.busy;
   const walkEnded = session.walkEnded;
-  const travelerCancelled = getRequestActionState(activeRequest).kind === 'cancelled';
+  const workflowRenderState = getGuideWorkflowRenderState(activeRequest);
+  const travelerCancelled = !workflowRenderState.renderActionableControls;
 
   const currentIndex = screenOrder.indexOf(screen);
   const isFirstScreen = currentIndex === 0;
@@ -185,10 +187,11 @@ function GuideApp() {
               <>
                 {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
                 {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} guideCity={user?.city} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
-                {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
-                {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => { if (!travelerCancelled) navigateTo('checklist'); }} /> : null}
-                {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={(ready) => setChecklistReady(travelerCancelled ? false : ready)} onStartStream={startLive} /> : null}
-                {screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
+                {travelerCancelled && cancelledWorkflowScreens.includes(screen) ? <CancelledWalkState /> : null}
+                {!travelerCancelled && screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
+                {!travelerCancelled && screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => navigateTo('checklist')} /> : null}
+                {!travelerCancelled && screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={setChecklistReady} onStartStream={startLive} /> : null}
+                {!travelerCancelled && screen === 'live' ? <LiveBroadcastScreen request={activeRequest} guideName={guideName} messages={messages} locationNote={session.locationNote} onSendMessage={sendGuideMessage} onEnd={endLive} /> : null}
                 {screen === 'earnings' ? <EarningsScreen onSchedule={() => navigateTo('schedule')} /> : null}
                 {screen === 'schedule' ? <ScheduleScreen onRatings={() => navigateTo('ratings')} /> : null}
                 {screen === 'ratings' ? <RatingsProfileScreen onRestart={() => navigateTo('dashboard')} /> : null}

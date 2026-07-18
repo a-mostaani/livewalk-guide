@@ -7,6 +7,10 @@ export type RequestActionState =
   | { kind: 'actionable' }
   | { kind: 'cancelled'; title: typeof CANCELLED_WALK_TITLE; description: typeof CANCELLED_WALK_DESCRIPTION };
 
+export type GuideWorkflowRenderState =
+  | { kind: 'actionable'; renderActionableControls: true }
+  | { kind: 'cancelled'; renderActionableControls: false; title: typeof CANCELLED_WALK_TITLE; description: typeof CANCELLED_WALK_DESCRIPTION };
+
 type CancellationSignalCarrier = {
   requestCancellation?: unknown;
   cancellation?: unknown;
@@ -55,6 +59,12 @@ export function canRunGuideWalkAction(request?: Pick<MarketplaceRequest, 'status
   return getRequestActionState(request).kind === 'actionable';
 }
 
+export function getGuideWorkflowRenderState(request?: Pick<MarketplaceRequest, 'status'> & CancellationSignalCarrier): GuideWorkflowRenderState {
+  const actionState = getRequestActionState(request);
+  if (actionState.kind === 'cancelled') return { ...actionState, renderActionableControls: false };
+  return { kind: 'actionable', renderActionableControls: true };
+}
+
 export function shouldPollGuideSession(request?: MarketplaceRequest) {
   return Boolean(request?.sessionId && canRunGuideWalkAction(request));
 }
@@ -65,6 +75,7 @@ export function filterActionableRequests(requests: MarketplaceRequest[]) {
 
 export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot) {
   if (!activeRequest) return undefined;
+  if (getRequestActionState(activeRequest).kind === 'cancelled') return activeRequest;
   const responseRequest = snapshot.request?.id === activeRequest.id ? snapshot.request : undefined;
   const request = { ...activeRequest, ...responseRequest };
   if (
@@ -76,6 +87,12 @@ export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequ
   if (snapshot.session.status === 'ended') return { ...request, status: 'completed' as const };
   if (snapshot.session.status === 'live') return { ...request, status: 'live' as const };
   return request;
+}
+
+export function applyGuideActiveRequestUpdate(current: MarketplaceRequest | undefined, requestId: string, next: MarketplaceRequest | undefined) {
+  if (current?.id !== requestId) return current;
+  if (getRequestActionState(current).kind === 'cancelled') return current;
+  return next;
 }
 
 export function resolveGuideSessionPoll(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot, pollCurrent: boolean): GuideSessionPollResolution {
