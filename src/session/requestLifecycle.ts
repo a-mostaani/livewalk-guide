@@ -11,6 +11,11 @@ export type GuideWorkflowRenderState =
   | { kind: 'actionable'; renderActionableControls: true }
   | { kind: 'cancelled'; renderActionableControls: false; title: typeof CANCELLED_WALK_TITLE; description: typeof CANCELLED_WALK_DESCRIPTION };
 
+export type GuideRequestIdentity = {
+  requestId?: string;
+  sessionId?: string | null;
+};
+
 type CancellationSignalCarrier = {
   requestCancellation?: unknown;
   cancellation?: unknown;
@@ -27,6 +32,35 @@ export type GuideSessionPollResolution =
   | { kind: 'cancelled'; request: MarketplaceRequest }
   | { kind: 'updated'; request: MarketplaceRequest }
   | { kind: 'ignored' };
+
+export type GuidePendingSelectionResolution =
+  | { kind: 'cancelled'; request: MarketplaceRequest }
+  | { kind: 'missing'; request: MarketplaceRequest }
+  | { kind: 'current' };
+
+export type GuideRequestDetailResolution =
+  | { kind: 'cancelled'; request: MarketplaceRequest }
+  | { kind: 'updated'; request: MarketplaceRequest }
+  | { kind: 'ignored' };
+
+export class GuideCancellationLatch {
+  private requestIds = new Set<string>();
+  private sessionIds = new Set<string>();
+
+  latch({ requestId, sessionId }: GuideRequestIdentity) {
+    if (requestId) this.requestIds.add(requestId);
+    if (sessionId) this.sessionIds.add(sessionId);
+  }
+
+  matches({ requestId, sessionId }: GuideRequestIdentity) {
+    return Boolean((requestId && this.requestIds.has(requestId)) || (sessionId && this.sessionIds.has(sessionId)));
+  }
+
+  clear() {
+    this.requestIds.clear();
+    this.sessionIds.clear();
+  }
+}
 
 function hasCancellationValue(value: unknown) {
   if (typeof value === 'string') return value.trim().length > 0;
@@ -73,9 +107,52 @@ export function filterActionableRequests(requests: MarketplaceRequest[]) {
   return requests.filter((request) => getRequestActionState(request).kind === 'actionable');
 }
 
-export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot) {
+export function filterGuidePendingRequests(requests: MarketplaceRequest[], cancellationLatch?: GuideCancellationLatch) {
+  return filterActionableRequests(requests).filter((request) => !cancellationLatch?.matches({ requestId: request.id, sessionId: request.sessionId }));
+}
+
+function cancelledGuideRequest(request: MarketplaceRequest) {
+  return { ...request, status: 'cancelled' as const };
+}
+
+function isCancellationLatched(request: MarketplaceRequest, sessionId: string | null | undefined, cancellationLatch?: GuideCancellationLatch) {
+  return cancellationLatch?.matches({ requestId: request.id, sessionId: sessionId ?? request.sessionId }) ?? false;
+}
+
+function latchCancelledRequest(request: MarketplaceRequest, sessionId: string | null | undefined, cancellationLatch?: GuideCancellationLatch) {
+  cancellationLatch?.latch({ requestId: request.id, sessionId: sessionId ?? request.sessionId });
+  return cancelledGuideRequest(request);
+}
+
+export function resolveGuidePendingSelection(activeRequest: MarketplaceRequest | undefined, pendingRequests: MarketplaceRequest[], cancellationLatch?: GuideCancellationLatch): GuidePendingSelectionResolution {
+  if (!activeRequest) return { kind: 'current' };
+  if (isCancellationLatched(activeRequest, activeRequest.sessionId, cancellationLatch) || getRequestActionState(activeRequest).kind === 'cancelled') {
+    return { kind: 'cancelled', request: latchCancelledRequest(activeRequest, activeRequest.sessionId, cancellationLatch) };
+  }
+  if (activeRequest.status === 'pending' && !activeRequest.sessionId && !pendingRequests.some((request) => request.id === activeRequest.id)) {
+    return { kind: 'missing', request: activeRequest };
+  }
+  return { kind: 'current' };
+}
+
+export function resolveGuideRequestDetail(activeRequest: MarketplaceRequest | undefined, snapshot: { request: MarketplaceRequest; session?: (Pick<LiveSession, 'id' | 'status'> & CancellationSignalCarrier) | null }, cancellationLatch?: GuideCancellationLatch): GuideRequestDetailResolution {
+  if (!activeRequest || snapshot.request.id !== activeRequest.id) return { kind: 'ignored' };
+  const sessionId = snapshot.session?.id ?? snapshot.request.sessionId ?? activeRequest.sessionId;
+  const request = { ...activeRequest, ...snapshot.request };
+  if (
+    isCancellationLatched(request, sessionId, cancellationLatch)
+    || getRequestActionState(request).kind === 'cancelled'
+    || snapshot.session?.status === 'cancelled'
+    || hasCancellationReason(snapshot.session ?? undefined)
+  ) return { kind: 'cancelled', request: latchCancelledRequest(request, sessionId, cancellationLatch) };
+  return { kind: 'updated', request };
+}
+
+export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot, cancellationLatch?: GuideCancellationLatch) {
   if (!activeRequest) return undefined;
-  if (getRequestActionState(activeRequest).kind === 'cancelled') return activeRequest;
+  if (isCancellationLatched(activeRequest, snapshot.session.id, cancellationLatch) || getRequestActionState(activeRequest).kind === 'cancelled') {
+    return latchCancelledRequest(activeRequest, snapshot.session.id, cancellationLatch);
+  }
   const responseRequest = snapshot.request?.id === activeRequest.id ? snapshot.request : undefined;
   const request = { ...activeRequest, ...responseRequest };
   if (
@@ -83,22 +160,25 @@ export function normalizeActiveRequestFromSession(activeRequest: MarketplaceRequ
     || snapshot.session.status === 'cancelled'
     || hasCancellationReason(snapshot)
     || hasCancellationReason(snapshot.session)
-  ) return { ...request, status: 'cancelled' as const };
+  ) return latchCancelledRequest(request, snapshot.session.id, cancellationLatch);
   if (snapshot.session.status === 'ended') return { ...request, status: 'completed' as const };
   if (snapshot.session.status === 'live') return { ...request, status: 'live' as const };
   return request;
 }
 
-export function applyGuideActiveRequestUpdate(current: MarketplaceRequest | undefined, requestId: string, next: MarketplaceRequest | undefined) {
+export function applyGuideActiveRequestUpdate(current: MarketplaceRequest | undefined, requestId: string, next: MarketplaceRequest | undefined, cancellationLatch?: GuideCancellationLatch) {
   if (current?.id !== requestId) return current;
-  if (getRequestActionState(current).kind === 'cancelled') return current;
+  if (isCancellationLatched(current, next?.sessionId ?? current.sessionId, cancellationLatch) || getRequestActionState(current).kind === 'cancelled') {
+    return latchCancelledRequest(current, next?.sessionId ?? current.sessionId, cancellationLatch);
+  }
+  if (next && getRequestActionState(next).kind === 'cancelled') return latchCancelledRequest(next, next.sessionId, cancellationLatch);
   return next;
 }
 
-export function resolveGuideSessionPoll(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot, pollCurrent: boolean): GuideSessionPollResolution {
-  const request = normalizeActiveRequestFromSession(activeRequest, snapshot);
+export function resolveGuideSessionPoll(activeRequest: MarketplaceRequest | undefined, snapshot: GuideSessionSnapshot, pollCurrent: boolean, cancellationLatch?: GuideCancellationLatch): GuideSessionPollResolution {
+  const request = normalizeActiveRequestFromSession(activeRequest, snapshot, cancellationLatch);
   if (!request) return { kind: 'ignored' };
-  if (getRequestActionState(request).kind === 'cancelled') return { kind: 'cancelled', request };
+  if (getRequestActionState(request).kind === 'cancelled') return { kind: 'cancelled', request: latchCancelledRequest(request, snapshot.session.id, cancellationLatch) };
   if (!pollCurrent) return { kind: 'ignored' };
   return { kind: 'updated', request };
 }
@@ -170,6 +250,10 @@ export class RequestPollGate {
     if (!this.isCurrent(snapshot)) return { kind: 'stale' as const, requests: this.lastValidRequests };
     this.lastValidRequests = filterActionableRequests(requests);
     return { kind: 'accepted' as const, requests: this.lastValidRequests };
+  }
+
+  remove(requestId?: string) {
+    if (requestId) this.lastValidRequests = this.lastValidRequests.filter((request) => request.id !== requestId);
   }
 
   retain(snapshot: PollSnapshot) {

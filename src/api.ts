@@ -90,6 +90,16 @@ export async function listPendingRequests() {
   return api<{ ok: true; requests: MarketplaceRequest[] }>('/api/requests?status=pending');
 }
 
+export type RequestStatusResponse = {
+  ok: true;
+  request: MarketplaceRequest;
+  session?: LiveSession | null;
+};
+
+export async function getRequest(id: string) {
+  return api<RequestStatusResponse>(`/api/requests/${id}`);
+}
+
 export async function acceptRequest(id: string) {
   return api<{ ok: true; request: MarketplaceRequest; session: LiveSession }>(`/api/requests/${id}/accept`, { method: 'POST' });
 }

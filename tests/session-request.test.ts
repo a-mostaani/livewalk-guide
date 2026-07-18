@@ -7,10 +7,14 @@ import {
   canFetchPendingRequests,
   canRunGuideWalkAction,
   filterActionableRequests,
+  filterGuidePendingRequests,
   getRequestActionState,
   getGuideWorkflowRenderState,
+  GuideCancellationLatch,
   normalizeActiveRequestFromSession,
   RequestPollGate,
+  resolveGuidePendingSelection,
+  resolveGuideRequestDetail,
   SingleFlightPoll,
   resolveGuideSessionPoll,
   shouldPollGuideSession,
@@ -225,6 +229,38 @@ describe('Guide request lifecycle', () => {
     expect(getGuideWorkflowRenderState(acceptedRequest).renderActionableControls).toBe(true);
     expect(getGuideWorkflowRenderState(readyRequest).renderActionableControls).toBe(true);
     expect(getGuideWorkflowRenderState({ ...acceptedRequest, status: 'live' }).renderActionableControls).toBe(true);
+  });
+
+  it('latches list/detail cancellation before a late stale response can rehydrate Guide controls', () => {
+    const selectedRequest = { ...pendingRequest, id: 'request-list-detail-cancel' };
+    const sessionId = 'session-list-detail-cancel';
+    const cancellationLatch = new GuideCancellationLatch();
+
+    expect(resolveGuidePendingSelection(selectedRequest, [selectedRequest], cancellationLatch)).toEqual({ kind: 'current' });
+
+    const missingFromPendingList = resolveGuidePendingSelection(selectedRequest, [], cancellationLatch);
+    expect(missingFromPendingList).toMatchObject({ kind: 'missing', request: { id: selectedRequest.id } });
+
+    const cancelledDetail = resolveGuideRequestDetail(selectedRequest, {
+      request: { ...selectedRequest, status: 'cancelled', sessionId },
+      session: { id: sessionId, status: 'cancelled' },
+    }, cancellationLatch);
+    expect(cancelledDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled', sessionId } });
+    expect(cancellationLatch.matches({ requestId: selectedRequest.id })).toBe(true);
+    expect(cancellationLatch.matches({ sessionId })).toBe(true);
+    expect(filterGuidePendingRequests([selectedRequest], cancellationLatch)).toEqual([]);
+
+    if (cancelledDetail.kind !== 'cancelled') return;
+    const staleReadyRequest = { ...selectedRequest, status: 'accepted' as const, sessionId };
+    const lateSessionPoll = resolveGuideSessionPoll(cancelledDetail.request, {
+      session: { id: sessionId, requestId: selectedRequest.id, status: 'ready' },
+      request: staleReadyRequest,
+    }, true, cancellationLatch);
+    const lateAction = applyGuideActiveRequestUpdate(cancelledDetail.request, selectedRequest.id, staleReadyRequest, cancellationLatch);
+
+    expect(lateSessionPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    expect(lateAction).toMatchObject({ status: 'cancelled' });
+    expect(getGuideWorkflowRenderState(lateAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
   });
 
   type CancellationSignal = {
