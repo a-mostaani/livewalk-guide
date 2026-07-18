@@ -114,6 +114,21 @@ type PollSnapshot = {
   requestEpoch: number;
 };
 
+export class SingleFlightPoll {
+  private inFlight?: Promise<unknown>;
+
+  run<T>(work: () => Promise<T>): Promise<T> {
+    if (this.inFlight) return this.inFlight as Promise<T>;
+    const task = Promise.resolve().then(work);
+    this.inFlight = task;
+    const clear = () => {
+      if (this.inFlight === task) this.inFlight = undefined;
+    };
+    void task.then(clear, clear);
+    return task;
+  }
+}
+
 export class RequestPollGate {
   private authenticationEpoch = 0;
   private requestEpoch = 0;

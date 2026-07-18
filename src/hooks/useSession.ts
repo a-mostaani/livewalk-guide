@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
-import { canFetchPendingRequests, canRunGuideWalkAction, getRequestActionState, normalizeActiveRequestFromSession, RequestPollGate, resolveGuideSessionPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
+import { canFetchPendingRequests, canRunGuideWalkAction, getRequestActionState, normalizeActiveRequestFromSession, RequestPollGate, resolveGuideSessionPoll, SingleFlightPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -23,6 +23,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   const [locationNote, setLocationNote] = useState('GPS starts when the live session starts.');
   const activeRequestRef = useRef<MarketplaceRequest | undefined>(undefined);
   const pollGateRef = useRef(new RequestPollGate());
+  const refreshFlightRef = useRef(new SingleFlightPoll());
   const authSnapshot = `${enabled}:${authReady}:${authKey}`;
   const authSnapshotRef = useRef(authSnapshot);
   const pollControlsSnapshot = `${online}`;
@@ -62,7 +63,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     setApiNote('Traveler cancelled this walk');
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(() => refreshFlightRef.current.run(async () => {
     if (!enabled || !authReady) return;
 
     const pollGate = pollGateRef.current;
@@ -127,7 +128,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
       setApiOnline(false);
       setApiNote('Session reconnecting');
     }
-  }, [authReady, enabled, markRequestCancelled, online]);
+  }), [authReady, enabled, markRequestCancelled, online]);
 
   useEffect(() => {
     if (!enabled || !authReady) return;

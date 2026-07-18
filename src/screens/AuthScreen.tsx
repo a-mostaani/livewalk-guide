@@ -9,6 +9,7 @@ export function AuthScreen() {
   const { busy, error, login, register } = useAuth();
   const [mode, setMode] = useState<Mode>('register');
   const [name, setName] = useState('');
+  const [city, setCity] = useState('Other');
   const [email, setEmail] = useState('guide@livewalk.test');
   const [password, setPassword] = useState('secret123');
   const isRegister = mode === 'register';
@@ -18,6 +19,7 @@ export function AuthScreen() {
   const useDemoGuide = () => {
     setMode('login');
     setName('Yuki Tanaka');
+    setCity('Other');
     setEmail('demo.guide@livewalk.test');
     setPassword('LiveWalkDemo1!');
     setLocalError('');
@@ -25,12 +27,17 @@ export function AuthScreen() {
 
   const submit = () => {
     const displayName = name.trim();
+    const dispatchCity = city.trim();
     if (!displayName) {
       setLocalError('Enter the display name that should appear in the live walk.');
       return;
     }
+    if (!dispatchCity) {
+      setLocalError('Enter the dispatch city used for traveler-request matching.');
+      return;
+    }
     setLocalError('');
-    return mode === 'register' ? register({ name: displayName, email, password }) : login({ name: displayName, email, password });
+    return mode === 'register' ? register({ name: displayName, city: dispatchCity, email, password }) : login({ name: displayName, city: dispatchCity, email, password });
   };
 
   return (
@@ -42,6 +49,8 @@ export function AuthScreen() {
       />
       <Card style={styles.card}>
         <Field label={isRegister ? 'Name' : 'Display name'} value={name} onChangeText={setName} autoCapitalize="words" placeholder="Your guide name" />
+        <Field label="Dispatch city" value={city} onChangeText={setCity} autoCapitalize="words" placeholder="London, Toronto, or Other" />
+        <Text style={styles.cityNote}>Use London or Toronto for those matching regions. Other keeps the current demo-region behavior.</Text>
         <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
         {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
@@ -65,5 +74,6 @@ const styles = StyleSheet.create({
   primary: { marginTop: 8 },
   secondary: { marginTop: 8 },
   error: { color: colors.danger, fontWeight: '800', marginVertical: 8 },
+  cityNote: { color: colors.muted, fontWeight: '700', lineHeight: 18, marginTop: 4 },
   note: { color: colors.muted, fontWeight: '700', lineHeight: 20, marginTop: 14 },
 });

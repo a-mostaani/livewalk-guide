@@ -111,11 +111,13 @@ export type AuthUser = {
   email: string;
   name: string;
   role: 'traveler' | 'guide';
+  city: string;
   createdAt: string;
 };
 
 export type AuthPayload = {
   name?: string;
+  city?: string;
   email: string;
   password: string;
 };

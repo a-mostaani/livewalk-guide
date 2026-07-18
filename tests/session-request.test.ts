@@ -9,6 +9,7 @@ import {
   getRequestActionState,
   normalizeActiveRequestFromSession,
   RequestPollGate,
+  SingleFlightPoll,
   resolveGuideSessionPoll,
   shouldPollGuideSession,
   shouldRefreshGuideState,
@@ -59,6 +60,30 @@ describe('Guide request lifecycle', () => {
 
     const failedPoll = gate.beginPoll();
     expect(gate.retain(failedPoll)).toEqual({ kind: 'retained', requests: [pendingRequest] });
+  });
+
+  it('coalesces overlapping slow availability polls so the newest request remains visible', async () => {
+    const gate = new RequestPollGate();
+    const flight = new SingleFlightPoll();
+    let release!: () => void;
+    const delayedResponse = new Promise<void>((resolve) => { release = resolve; });
+    let calls = 0;
+
+    const refresh = () => flight.run(async () => {
+      calls += 1;
+      const snapshot = gate.beginPoll();
+      await delayedResponse;
+      return gate.accept(snapshot, [pendingRequest]);
+    });
+
+    const first = refresh();
+    const overlapping = refresh();
+    expect(overlapping).toBe(first);
+    expect(calls).toBe(0);
+
+    release();
+    await expect(first).resolves.toEqual({ kind: 'accepted', requests: [pendingRequest] });
+    expect(calls).toBe(1);
   });
 
   it('reloads when the online dashboard regains focus', () => {

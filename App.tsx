@@ -184,7 +184,7 @@ function GuideApp() {
             ) : (
               <>
                 {screen === 'onboarding' ? <OnboardingScreen onStart={() => navigateTo('dashboard')} /> : null}
-                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
+                {screen === 'dashboard' ? <DashboardScreen online={online} pendingCount={pendingRequests.length} newestRequest={pendingRequests[0]} guideName={guideName} guideCity={user?.city} onToggleOnline={() => setOnline((value) => !value)} onViewRequest={viewRequest} /> : null}
                 {screen === 'request' ? <IncomingRequestScreen request={activeRequest} busy={busy} onAccept={acceptActiveRequest} onDecline={declineActiveRequest} /> : null}
                 {screen === 'route' ? <RouteDetailsScreen request={activeRequest} onContinue={() => { if (!travelerCancelled) navigateTo('checklist'); }} /> : null}
                 {screen === 'checklist' ? <ChecklistScreen request={activeRequest} onReadyChange={(ready) => setChecklistReady(travelerCancelled ? false : ready)} onStartStream={startLive} /> : null}
