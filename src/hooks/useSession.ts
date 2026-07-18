@@ -1,8 +1,8 @@
 import { AppState } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { acceptRequest, declineRequest, endSession, getRequest, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
-import { applyGuideActiveRequestUpdate, canFetchPendingRequests, canRunGuideWalkAction, filterGuidePendingRequests, getRequestActionState, GuideCancellationLatch, normalizeActiveRequestFromSession, RequestPollGate, resolveGuidePendingSelection, resolveGuideRequestDetail, resolveGuideSessionPoll, SingleFlightPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
+import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
+import { applyGuideActiveRequestUpdate, canFetchPendingRequests, canRunGuideWalkAction, filterGuidePendingRequests, getGuideSelectedRequestState, getRequestActionState, GuideCancellationLatch, normalizeActiveRequestFromSession, RequestPollGate, resolveGuidePendingSelection, resolveGuideSessionPoll, SingleFlightPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -114,21 +114,8 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
         if (result.kind === 'accepted') {
           setPendingRequests(result.requests);
           const selection = resolveGuidePendingSelection(activeRequestRef.current, result.requests, cancellationLatchRef.current);
-          if (selection.kind === 'cancelled') {
+          if (selection.kind === 'cancelled' || selection.kind === 'missing') {
             markRequestCancelled(selection.request.id, selection.request, selection.request.sessionId);
-          } else if (selection.kind === 'missing') {
-            try {
-              const detail = await getRequest(selection.request.id);
-              if (activeRequestRef.current?.id !== selection.request.id) return;
-              const detailResolution = resolveGuideRequestDetail(activeRequestRef.current, detail, cancellationLatchRef.current);
-              if (detailResolution.kind === 'cancelled') {
-                markRequestCancelled(detailResolution.request.id, detailResolution.request, detail.session?.id);
-              } else if (detailResolution.kind === 'updated' && pollGate.isCurrent(snapshot)) {
-                updateActiveRequest(detailResolution.request.id, detailResolution.request);
-              }
-            } catch (error) {
-              if (isRequestCancelledError(error)) markRequestCancelled(selection.request.id, undefined, selection.request.sessionId);
-            }
           }
         }
       } catch {
@@ -383,6 +370,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     busy,
     locationNote,
     walkEnded: activeRequest?.status === 'completed',
+    selectedRequestState: getGuideSelectedRequestState(activeRequest, pendingRequests, cancellationLatchRef.current),
     refresh,
     selectRequest,
     acceptActiveRequest,

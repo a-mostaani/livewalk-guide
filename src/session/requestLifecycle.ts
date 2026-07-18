@@ -11,14 +11,17 @@ export type GuideWorkflowRenderState =
   | { kind: 'actionable'; renderActionableControls: true }
   | { kind: 'cancelled'; renderActionableControls: false; title: typeof CANCELLED_WALK_TITLE; description: typeof CANCELLED_WALK_DESCRIPTION };
 
-export type GuideScreenRenderPlan = {
+export type GuideSelectedRequestState =
+  | { kind: 'none' }
+  | { kind: 'actionable'; requestId: string }
+  | { kind: 'cancelled'; requestId: string; reason: 'cancelled' | 'missing' | 'latched' };
+
+export type GuideScreenContent = {
+  kind: 'content' | 'cancelled';
   travelerCancelled: boolean;
-  renderCancelledState: boolean;
-  renderIncomingRequest: boolean;
-  renderRouteDetails: boolean;
-  renderChecklist: boolean;
-  renderLiveBroadcast: boolean;
-  renderBottomNavigation: boolean;
+  mountsIncomingRequest: boolean;
+  mountsIncomingRequestActions: boolean;
+  mountsBottomNavigation: boolean;
 };
 
 export const GUIDE_WORKFLOW_SCREENS: Screen[] = ['request', 'route', 'checklist', 'live'];
@@ -115,17 +118,29 @@ export function isGuideWorkflowScreen(screen: Screen) {
   return GUIDE_WORKFLOW_SCREENS.includes(screen);
 }
 
-export function getGuideScreenRenderPlan(screen: Screen, request?: Pick<MarketplaceRequest, 'status'> & CancellationSignalCarrier): GuideScreenRenderPlan {
-  const travelerCancelled = !getGuideWorkflowRenderState(request).renderActionableControls;
-  const renderCancelledState = travelerCancelled && isGuideWorkflowScreen(screen);
+export function getGuideSelectedRequestState(activeRequest: MarketplaceRequest | undefined, pendingRequests: MarketplaceRequest[], cancellationLatch?: GuideCancellationLatch): GuideSelectedRequestState {
+  if (!activeRequest) return { kind: 'none' };
+  if (cancellationLatch?.matches({ requestId: activeRequest.id, sessionId: activeRequest.sessionId })) {
+    return { kind: 'cancelled', requestId: activeRequest.id, reason: 'latched' };
+  }
+  if (getRequestActionState(activeRequest).kind === 'cancelled') {
+    return { kind: 'cancelled', requestId: activeRequest.id, reason: 'cancelled' };
+  }
+  if (activeRequest.status === 'pending' && !activeRequest.sessionId && !pendingRequests.some((request) => request.id === activeRequest.id)) {
+    return { kind: 'cancelled', requestId: activeRequest.id, reason: 'missing' };
+  }
+  return { kind: 'actionable', requestId: activeRequest.id };
+}
+
+export function getGuideScreenContent(screen: Screen, selectedRequestState: GuideSelectedRequestState): GuideScreenContent {
+  const travelerCancelled = selectedRequestState.kind === 'cancelled';
+  const terminalWorkflowScreen = travelerCancelled && isGuideWorkflowScreen(screen);
   return {
+    kind: terminalWorkflowScreen ? 'cancelled' : 'content',
     travelerCancelled,
-    renderCancelledState,
-    renderIncomingRequest: screen === 'request' && !travelerCancelled,
-    renderRouteDetails: screen === 'route' && !travelerCancelled,
-    renderChecklist: screen === 'checklist' && !travelerCancelled,
-    renderLiveBroadcast: screen === 'live' && !travelerCancelled,
-    renderBottomNavigation: !travelerCancelled,
+    mountsIncomingRequest: screen === 'request' && !terminalWorkflowScreen,
+    mountsIncomingRequestActions: screen === 'request' && !terminalWorkflowScreen,
+    mountsBottomNavigation: !travelerCancelled,
   };
 }
 
@@ -156,11 +171,10 @@ function latchCancelledRequest(request: MarketplaceRequest, sessionId: string | 
 
 export function resolveGuidePendingSelection(activeRequest: MarketplaceRequest | undefined, pendingRequests: MarketplaceRequest[], cancellationLatch?: GuideCancellationLatch): GuidePendingSelectionResolution {
   if (!activeRequest) return { kind: 'current' };
-  if (isCancellationLatched(activeRequest, activeRequest.sessionId, cancellationLatch) || getRequestActionState(activeRequest).kind === 'cancelled') {
-    return { kind: 'cancelled', request: latchCancelledRequest(activeRequest, activeRequest.sessionId, cancellationLatch) };
-  }
-  if (activeRequest.status === 'pending' && !activeRequest.sessionId && !pendingRequests.some((request) => request.id === activeRequest.id)) {
-    return { kind: 'missing', request: activeRequest };
+  const selectedRequestState = getGuideSelectedRequestState(activeRequest, pendingRequests, cancellationLatch);
+  if (selectedRequestState.kind === 'cancelled') {
+    const request = latchCancelledRequest(activeRequest, activeRequest.sessionId, cancellationLatch);
+    return { kind: selectedRequestState.reason === 'missing' ? 'missing' : 'cancelled', request };
   }
   return { kind: 'current' };
 }
