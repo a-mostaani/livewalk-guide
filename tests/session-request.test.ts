@@ -4,11 +4,13 @@ import {
   CANCELLED_WALK_DESCRIPTION,
   CANCELLED_WALK_TITLE,
   canFetchPendingRequests,
+  canRunGuideWalkAction,
   filterActionableRequests,
   getRequestActionState,
   normalizeActiveRequestFromSession,
   RequestPollGate,
   resolveGuideSessionPoll,
+  shouldPollGuideSession,
   shouldRefreshGuideState,
   shouldReloadDashboard,
 } from '../src/session/requestLifecycle';
@@ -138,6 +140,28 @@ describe('Guide request lifecycle', () => {
 
     expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
     if (cancelledPoll.kind === 'cancelled') expect(getRequestActionState(cancelledPoll.request).kind).toBe('cancelled');
+  });
+
+  it('makes a cancelled pre-live walk terminal for Guide polling and actions', () => {
+    const acceptedRequest = {
+      ...pendingRequest,
+      id: 'request-terminal-cancel',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-terminal-cancel',
+    };
+    const cancelledPoll = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'cancelled' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    }, true);
+
+    expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancelledPoll.kind === 'cancelled') {
+      expect(shouldPollGuideSession(cancelledPoll.request)).toBe(false);
+      expect(canRunGuideWalkAction(cancelledPoll.request)).toBe(false);
+    }
+    expect(shouldPollGuideSession(acceptedRequest)).toBe(true);
+    expect(canRunGuideWalkAction(acceptedRequest)).toBe(true);
   });
 
   type CancellationSignal = {

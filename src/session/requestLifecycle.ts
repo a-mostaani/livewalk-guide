@@ -51,6 +51,14 @@ export function getRequestActionState(request?: Pick<MarketplaceRequest, 'status
   return { kind: 'actionable' };
 }
 
+export function canRunGuideWalkAction(request?: Pick<MarketplaceRequest, 'status'> & CancellationSignalCarrier) {
+  return getRequestActionState(request).kind === 'actionable';
+}
+
+export function shouldPollGuideSession(request?: MarketplaceRequest) {
+  return Boolean(request?.sessionId && canRunGuideWalkAction(request));
+}
+
 export function filterActionableRequests(requests: MarketplaceRequest[]) {
   return requests.filter((request) => getRequestActionState(request).kind === 'actionable');
 }

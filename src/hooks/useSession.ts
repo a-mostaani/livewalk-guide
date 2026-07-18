@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { acceptRequest, declineRequest, endSession, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
-import { canFetchPendingRequests, getRequestActionState, normalizeActiveRequestFromSession, RequestPollGate, resolveGuideSessionPoll, shouldRefreshGuideState } from '../session/requestLifecycle';
+import { canFetchPendingRequests, canRunGuideWalkAction, getRequestActionState, normalizeActiveRequestFromSession, RequestPollGate, resolveGuideSessionPoll, shouldPollGuideSession, shouldRefreshGuideState } from '../session/requestLifecycle';
 import type { MarketplaceRequest, SessionMessage } from '../types';
 
 type UseSessionArgs = {
@@ -96,7 +96,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
 
     const request = activeRequestRef.current;
     const sessionId = request?.sessionId;
-    if (!request || !sessionId) return;
+    if (!sessionId || !shouldPollGuideSession(request)) return;
 
     try {
       const session = await getSessionStatus(sessionId);
@@ -169,7 +169,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   }, []);
 
   const acceptActiveRequest = useCallback(async () => {
-    if (!activeRequest || getRequestActionState(activeRequest).kind === 'cancelled') return false;
+    if (!activeRequest || !canRunGuideWalkAction(activeRequest)) return false;
     setBusy(true);
     try {
       const data = await acceptRequest(activeRequest.id);
@@ -192,7 +192,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   }, [activeRequest, markRequestCancelled]);
 
   const declineActiveRequest = useCallback(async () => {
-    if (!activeRequest || getRequestActionState(activeRequest).kind === 'cancelled') return false;
+    if (!activeRequest || !canRunGuideWalkAction(activeRequest)) return false;
     setBusy(true);
     try {
       await declineRequest(activeRequest.id);
@@ -209,7 +209,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   }, [activeRequest, markRequestCancelled]);
 
   const startLive = useCallback(async () => {
-    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return false;
+    if (!activeRequest?.sessionId || !canRunGuideWalkAction(activeRequest)) return false;
     try {
       const data = await startSession(activeRequest.sessionId);
       const updatedRequest = normalizeActiveRequestFromSession(activeRequest, data);
@@ -228,7 +228,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   }, [activeRequest, markRequestCancelled]);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return;
+    if (!activeRequest?.sessionId || !canRunGuideWalkAction(activeRequest)) return;
     try {
       await sendSessionMessage(activeRequest.sessionId, text);
       const data = await getSessionStatus(activeRequest.sessionId);
@@ -245,7 +245,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
   }, [activeRequest, markRequestCancelled]);
 
   const endLive = useCallback(async () => {
-    if (!activeRequest?.sessionId || getRequestActionState(activeRequest).kind === 'cancelled') return false;
+    if (!activeRequest?.sessionId || !canRunGuideWalkAction(activeRequest)) return false;
     setBusy(true);
     try {
       const data = await endSession(activeRequest.sessionId);
