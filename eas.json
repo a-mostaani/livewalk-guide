@@ -8,9 +8,9 @@
       "environment": "development",
       "env": {
         "LIVEWALK_BUILD_CHANNEL": "qa",
-        "LIVEWALK_BUILD_COMMIT": "5930b6d",
+        "LIVEWALK_BUILD_COMMIT": "bd14ed6",
         "LIVEWALK_BUILD_BRANCH": "peter-dev",
-        "LIVEWALK_BUILD_PURPOSE": "cancellation-state QA"
+        "LIVEWALK_BUILD_PURPOSE": "accepted/ready cancellation QA"
       },
       "developmentClient": true,
       "distribution": "internal",
@@ -22,9 +22,9 @@
       "environment": "preview",
       "env": {
         "LIVEWALK_BUILD_CHANNEL": "qa",
-        "LIVEWALK_BUILD_COMMIT": "5930b6d",
+        "LIVEWALK_BUILD_COMMIT": "bd14ed6",
         "LIVEWALK_BUILD_BRANCH": "peter-dev",
-        "LIVEWALK_BUILD_PURPOSE": "cancellation-state QA"
+        "LIVEWALK_BUILD_PURPOSE": "accepted/ready cancellation QA"
       },
       "distribution": "internal",
       "android": {
