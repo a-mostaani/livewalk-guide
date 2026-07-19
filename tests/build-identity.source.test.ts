@@ -30,16 +30,16 @@ describe('Guide source build identity', () => {
 
     expect(source).not.toMatch(/process\.env|expo-constants|Constants\.expoConfig/);
     expect(QA_BUILD_METADATA).toEqual({
-      commit: '8fc7a4d',
+      commit: 'c204302',
       branch: 'peter-dev',
-      purpose: 'accepted/ready cancellation QA',
-      label: 'QA BUILD · 8fc7a4d · peter-dev · accepted/ready cancellation QA',
+      purpose: 'launch + accepted/ready cancellation QA',
+      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
     });
     expect(renderQaBuildIdentity(ACTIVE_BUILD_METADATA)).toEqual({
       testID: 'qa-build-badge',
       labelTestID: 'qa-build-badge-label',
-      accessibilityLabel: 'QA BUILD · 8fc7a4d · peter-dev · accepted/ready cancellation QA',
-      label: 'QA BUILD · 8fc7a4d · peter-dev · accepted/ready cancellation QA',
+      accessibilityLabel: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
+      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
     });
   });
 

@@ -13,10 +13,10 @@ export type QaBuildIdentityDisplay = {
 };
 
 export const QA_BUILD_METADATA: QaBuildMetadata = {
-  commit: '8fc7a4d',
+  commit: 'c204302',
   branch: 'peter-dev',
-  purpose: 'accepted/ready cancellation QA',
-  label: 'QA BUILD · 8fc7a4d · peter-dev · accepted/ready cancellation QA',
+  purpose: 'launch + accepted/ready cancellation QA',
+  label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
 };
 
 export const PRODUCTION_BUILD_METADATA: QaBuildMetadata | null = null;
