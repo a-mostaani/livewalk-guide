@@ -28,6 +28,8 @@ const extra = getLiveWalkExtra();
 
 export const API_BASE = cleanApiBaseUrl(extra.apiBaseUrl);
 export const LIVEKIT_WS_URL = extra.livekitWsUrl?.trim() ?? '';
-export const mapboxTokenWeb = cleanMapboxToken(extra.mapboxTokenWeb, 'web');
-export const mapboxTokenMobile = cleanMapboxToken(extra.mapboxTokenMobile, 'mobile');
-export const mapboxTokenForCurrentPlatform = Platform.OS === 'web' ? mapboxTokenWeb : mapboxTokenMobile;
+export function getMapboxTokenForCurrentPlatform(): string {
+  return Platform.OS === 'web'
+    ? cleanMapboxToken(extra.mapboxTokenWeb, 'web')
+    : cleanMapboxToken(extra.mapboxTokenMobile, 'mobile');
+}
