@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Field, Header, colors } from '../components/Primitives';
-import { QaBuildBadge } from '../components/QaBuildBadge';
 import { useAuth } from '../auth/AuthContext';
 
 type Mode = 'register' | 'login';
@@ -48,7 +47,6 @@ export function AuthScreen() {
         title={isRegister ? 'Create your Guide account.' : 'Log back in.'}
         body="Use the display name that should appear in requests, dashboards, and live sessions."
       />
-      <QaBuildBadge />
       <Card style={styles.card}>
         <Field label={isRegister ? 'Name' : 'Display name'} value={name} onChangeText={setName} autoCapitalize="words" placeholder="Your guide name" />
         <Field label="Dispatch city" value={city} onChangeText={setCity} autoCapitalize="words" placeholder="London, Toronto, or Other" />

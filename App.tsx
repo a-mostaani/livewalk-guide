@@ -152,8 +152,10 @@ function GuideApp() {
               <Text style={styles.statusText}>{apiOnline ? 'Live' : 'Sync'}</Text>
             </View>
           </View>
-          <Text style={styles.backendLine} numberOfLines={1}>{user ? `${user.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
-          {user ? <QaBuildBadge /> : null}
+          <View style={styles.headerMeta}>
+            <Text style={styles.backendLine} numberOfLines={1}>{user ? `${user.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
+            <QaBuildBadge />
+          </View>
           {user ? <View style={styles.stepper}>
             {screenOrder.map((item, index) => {
               const active = item === screen;
@@ -222,6 +224,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold },
   statusDotOnline: { backgroundColor: colors.green },
   statusText: { color: colors.ink, fontWeight: '900', fontSize: 11 },
+  headerMeta: { paddingTop: 1 },
   backendLine: { color: colors.muted, fontSize: 11, fontWeight: '700', paddingHorizontal: 18, paddingBottom: 7 },
   stepper: { flexDirection: 'row', paddingHorizontal: 8, paddingBottom: 8, gap: 2 },
   stepItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 11 },

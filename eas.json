@@ -6,12 +6,6 @@
   "build": {
     "development": {
       "environment": "development",
-      "env": {
-        "LIVEWALK_BUILD_CHANNEL": "qa",
-        "LIVEWALK_BUILD_COMMIT": "bd14ed6",
-        "LIVEWALK_BUILD_BRANCH": "peter-dev",
-        "LIVEWALK_BUILD_PURPOSE": "accepted/ready cancellation QA"
-      },
       "developmentClient": true,
       "distribution": "internal",
       "android": {
@@ -20,12 +14,6 @@
     },
     "preview": {
       "environment": "preview",
-      "env": {
-        "LIVEWALK_BUILD_CHANNEL": "qa",
-        "LIVEWALK_BUILD_COMMIT": "bd14ed6",
-        "LIVEWALK_BUILD_BRANCH": "peter-dev",
-        "LIVEWALK_BUILD_PURPOSE": "accepted/ready cancellation QA"
-      },
       "distribution": "internal",
       "android": {
         "buildType": "apk"

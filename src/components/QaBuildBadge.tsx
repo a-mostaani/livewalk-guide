@@ -1,18 +1,37 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { QA_BUILD_LABEL } from '../buildIdentity';
+import { ACTIVE_BUILD_METADATA, renderQaBuildIdentity } from '../buildIdentity';
+import { colors } from './Primitives';
 
 export function QaBuildBadge() {
-  if (!QA_BUILD_LABEL) return null;
+  const identity = renderQaBuildIdentity(ACTIVE_BUILD_METADATA);
+  if (!identity) return null;
 
   return (
-    <View testID="qa-build-badge" accessibilityRole="text" accessibilityLabel={QA_BUILD_LABEL} style={styles.badge}>
-      <Text testID="qa-build-badge-label" style={styles.label}>{QA_BUILD_LABEL}</Text>
+    <View testID={identity.testID} accessibilityRole="text" accessibilityLabel={identity.accessibilityLabel} style={styles.badge}>
+      <Text testID={identity.labelTestID} style={styles.label}>{identity.label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start', backgroundColor: '#FFF0E0', borderColor: '#D8A856', borderRadius: 999, borderWidth: 1, marginBottom: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  label: { color: '#895A12', fontSize: 10, fontWeight: '900', letterSpacing: 0.3 },
+  badge: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.qaBuildBadgeBackground,
+    borderColor: colors.qaBuildBadgeBorder,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginHorizontal: 18,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  label: {
+    color: colors.qaBuildBadgeText,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.15,
+    lineHeight: 20,
+  },
 });
