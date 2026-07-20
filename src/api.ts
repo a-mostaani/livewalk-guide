@@ -145,3 +145,16 @@ export async function updateSessionLocation(sessionId: string, payload: SessionL
     body: JSON.stringify(payload),
   });
 }
+
+export type LiveKitTokenResponse = {
+  ok: true;
+  token: string;
+  room: string;
+  identity: string;
+  canPublish: boolean;
+  expiresIn: number;
+};
+
+export async function fetchLiveKitToken(sessionId: string) {
+  return api<LiveKitTokenResponse>(`/api/sessions/${sessionId}/livekit-token`, { method: 'POST' });
+}

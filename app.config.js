@@ -25,14 +25,18 @@ function createAppConfig(config, env = process.env) {
       backgroundColor: '#FBF7EF',
     },
     assetBundlePatterns: ['**/*'],
-    plugins: ['expo-dev-client'],
+    plugins: ['expo-dev-client', '@livekit/react-native-expo-plugin', '@config-plugins/react-native-webrtc'],
     newArchEnabled: false,
     android: {
       package: 'com.livewalk.guide',
-      permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+      permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'CAMERA', 'RECORD_AUDIO'],
     },
     ios: {
       supportsTablet: true,
+      infoPlist: {
+        NSCameraUsageDescription: 'LiveWalk needs camera access so guides can broadcast live video to their traveler.',
+        NSMicrophoneUsageDescription: 'LiveWalk needs microphone access so guides can broadcast live audio to their traveler.',
+      },
     },
     extra: {
       ...config.extra,

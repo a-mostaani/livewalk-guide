@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
+import { GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
+import { GuideBroadcastVideo } from '../components/GuideBroadcastVideo';
 import { Button, Card, colors } from '../components/Primitives';
 import { CancelledWalkState } from '../components/CancelledWalkState';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
 import { formatDuration } from '../format';
 import { canRunGuideWalkAction, getRequestActionState } from '../session/requestLifecycle';
+import { useGuideBroadcast } from '../session/useGuideBroadcast';
 
 export function LiveBroadcastScreen({
   request,
@@ -31,6 +33,7 @@ export function LiveBroadcastScreen({
   const actionState = getRequestActionState(request);
   const walkEnded = request?.status === 'completed';
   const sessionReady = Boolean(request?.sessionId && request?.status === 'live' && actionState.kind === 'actionable');
+  const broadcast = useGuideBroadcast(request?.sessionId ?? undefined, sessionReady);
   const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
@@ -83,6 +86,7 @@ export function LiveBroadcastScreen({
     if (!canRunGuideWalkAction(request) || !sessionReady) return;
     const ended = await onEnd();
     if (ended) {
+      broadcast.stop();
       setActionNote('Walk ended for both sides. Opening earnings.');
       return;
     }
@@ -104,7 +108,7 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.timerPill}><Text style={styles.timerText}>{walkEnded ? 'ENDED' : (request?.status === 'live' ? 'LIVE' : 'Ready')}</Text></View>
       </View>
-      <BroadcasterPlaceholder guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
+      <GuideBroadcastVideo connectionProps={broadcast.connectionProps} guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
           <View style={styles.alertRow}>
