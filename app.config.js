@@ -44,6 +44,9 @@ function createAppConfig(config, env = process.env) {
       livekitWsUrl,
       mapboxTokenWeb,
       mapboxTokenMobile,
+      eas: {
+        projectId: '5b01cdcf-9979-4dda-bc0a-899ac4baf643',
+      },
     },
   };
 }
