@@ -36,6 +36,7 @@ function createAppConfig(config, env = process.env) {
       infoPlist: {
         NSCameraUsageDescription: 'LiveWalk needs camera access so guides can broadcast live video to their traveler.',
         NSMicrophoneUsageDescription: 'LiveWalk needs microphone access so guides can broadcast live audio to their traveler.',
+        NSLocationWhenInUseUsageDescription: 'LiveWalk needs your location while guiding so the traveler can see your live position on the route.',
       },
     },
     extra: {
