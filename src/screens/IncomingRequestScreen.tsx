@@ -4,11 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap } from '../components/GuideVisuals';
 import { CancelledWalkState } from '../components/CancelledWalkState';
+import { getMapboxTokenSafely } from '../config';
 import { getRequestActionState } from '../session/requestLifecycle';
 import { MarketplaceRequest } from '../api';
 import { formatDuration, formatEstimateTotal, formatScheduledStart } from '../format';
+import { useRoutePolyline } from '../hooks/useRoutePolyline';
 
 export function IncomingRequestScreen({ request, busy = false, onAccept, onDecline }: { request?: MarketplaceRequest; busy?: boolean; onAccept: () => void; onDecline: () => void }) {
+  const mapboxToken = getMapboxTokenSafely();
+  const routePolyline = useRoutePolyline(request?.origin, request?.destination, mapboxToken);
+
   if (!request) {
     return (
       <View>
@@ -57,7 +62,7 @@ export function IncomingRequestScreen({ request, busy = false, onAccept, onDecli
           </View>
         </View>
       </Card>
-      <GuideRouteMap compact />
+      <GuideRouteMap origin={request.origin} destination={request.destination} mapboxToken={mapboxToken} routePolyline={routePolyline} compact />
       <View style={styles.decisionBanner}>
         <Ionicons name="sync" size={20} color={colors.green} />
         <Text style={styles.decisionText}>Accept or decline is posted to the backend immediately.</Text>

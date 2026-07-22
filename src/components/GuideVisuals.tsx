@@ -1,7 +1,47 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, colors } from './Primitives';
+
+function numeric(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function coordinate(point?: { lat?: number; lng?: number } | null) {
+  return numeric(point?.lat) && numeric(point?.lng) ? { lat: point.lat, lng: point.lng } : undefined;
+}
+
+function pin(size: 's' | 'l', label: string, color: string, lng: number, lat: number) {
+  return `pin-${size}-${label}+${color}(${lng.toFixed(5)},${lat.toFixed(5)})`;
+}
+
+// Static Images can draw a path overlay, but it does not compute routing
+// itself - the actual walking-route geometry comes from the separate
+// Directions API (see routeGeometry.ts/useRoutePolyline), fetched once and
+// passed in here as an encoded polyline.
+function path(polyline: string, color: string) {
+  return `path-4+${color}-0.85(${encodeURIComponent(polyline)})`;
+}
+
+function buildRouteMapImageUrl({
+  origin,
+  destination,
+  routePolyline,
+  mapboxToken,
+}: {
+  origin?: { lat: number; lng: number };
+  destination?: { lat: number; lng: number };
+  routePolyline?: string;
+  mapboxToken: string;
+}) {
+  if (!mapboxToken || !origin || !destination) return undefined;
+  const overlays = [
+    routePolyline ? path(routePolyline, colors.gold.slice(1)) : undefined,
+    pin('s', 'a', colors.green.slice(1), origin.lng, origin.lat),
+    pin('s', 'b', colors.ink.slice(1), destination.lng, destination.lat),
+  ].filter(Boolean).join(',');
+  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays}/auto/600x360@2x?access_token=${encodeURIComponent(mapboxToken)}`;
+}
 
 export function BrandMark() {
   return (
@@ -17,25 +57,47 @@ export function BrandMark() {
   );
 }
 
-export function GuideRouteMap({ compact = false }: { compact?: boolean }) {
+export function GuideRouteMap({
+  origin,
+  destination,
+  mapboxToken,
+  routePolyline,
+  compact = false,
+}: {
+  origin?: { label: string; lat?: number; lng?: number };
+  destination?: { label: string; lat?: number; lng?: number };
+  mapboxToken: string;
+  routePolyline?: string;
+  compact?: boolean;
+}) {
+  const originCoord = coordinate(origin);
+  const destinationCoord = coordinate(destination);
+  const imageUrl = buildRouteMapImageUrl({ origin: originCoord, destination: destinationCoord, routePolyline, mapboxToken });
+
+  if (!originCoord || !destinationCoord) {
+    return (
+      <View style={[styles.map, compact && styles.mapCompact, styles.mapWaiting]}>
+        <Ionicons name="map-outline" size={28} color={colors.blue} />
+        <Text style={styles.mapWaitingTitle}>No route yet</Text>
+        <Text style={styles.mapWaitingText}>The planned route appears once the accepted request has coordinates.</Text>
+      </View>
+    );
+  }
+
+  if (!imageUrl) {
+    return (
+      <View style={[styles.map, compact && styles.mapCompact, styles.mapWaiting]}>
+        <Ionicons name="map-outline" size={28} color={colors.blue} />
+        <Text style={styles.mapWaitingTitle}>Map token missing</Text>
+        <Text style={styles.mapWaitingText}>The Mapbox public token is not configured for this build.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.map, compact && styles.mapCompact]}>
-      <View style={[styles.mapBlock, styles.blockOne]} />
-      <View style={[styles.mapBlock, styles.blockTwo]} />
-      <View style={[styles.mapBlock, styles.blockThree]} />
-      <View style={[styles.mapBlock, styles.blockFour]} />
-      <View style={styles.routeLine} />
-      <View style={[styles.pin, styles.pinStart]}>
-        <Ionicons name="play" size={13} color={colors.white} />
-      </View>
-      <View style={[styles.pin, styles.pinStop]}>
-        <Ionicons name="camera" size={13} color={colors.ink} />
-      </View>
-      <View style={[styles.pin, styles.pinEnd]}>
-        <Ionicons name="flag" size={14} color={colors.white} />
-      </View>
-      <View style={styles.gpsDot} />
-      <Text style={styles.mapLabel}>Mock GPS route • guide view</Text>
+      <Image source={{ uri: imageUrl }} style={styles.mapImage} resizeMode="cover" />
+      <Text style={styles.mapLabel}>{routePolyline ? 'Planned walking route' : 'Route preview'}</Text>
     </View>
   );
 }
@@ -112,37 +174,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(13,77,102,0.16)',
   },
   mapCompact: { height: 154, borderRadius: 22 },
-  mapBlock: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: 18 },
-  blockOne: { left: 18, top: 22, width: 108, height: 68, transform: [{ rotate: '-8deg' }] },
-  blockTwo: { right: 14, top: 42, width: 132, height: 82, transform: [{ rotate: '12deg' }] },
-  blockThree: { left: 54, bottom: 24, width: 172, height: 62, transform: [{ rotate: '5deg' }] },
-  blockFour: { right: 38, bottom: 18, width: 74, height: 54, transform: [{ rotate: '-12deg' }], opacity: 0.72 },
-  routeLine: {
-    position: 'absolute',
-    left: 52,
-    top: 75,
-    width: 226,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: colors.gold,
-    transform: [{ rotate: '28deg' }],
-  },
-  pin: { position: 'absolute', width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pinStart: { left: 40, top: 56, backgroundColor: colors.green },
-  pinStop: { left: '52%', top: '45%', backgroundColor: colors.white, borderWidth: 2, borderColor: colors.gold },
-  pinEnd: { right: 42, bottom: 50, backgroundColor: colors.ink },
-  gpsDot: {
-    position: 'absolute',
-    left: '43%',
-    top: '51%',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.white,
-    borderWidth: 5,
-    borderColor: colors.blue,
-  },
-  mapLabel: { position: 'absolute', left: 16, bottom: 14, color: colors.blue, fontWeight: '900' },
+  mapImage: { width: '100%', height: '100%' },
+  mapWaiting: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  mapWaitingTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', marginTop: 8 },
+  mapWaitingText: { color: colors.muted, textAlign: 'center', lineHeight: 19, fontWeight: '700', marginTop: 4 },
+  mapLabel: { position: 'absolute', left: 16, bottom: 14, color: colors.blue, fontWeight: '900', backgroundColor: 'rgba(255,255,255,0.86)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden' },
   video: { height: 342, borderRadius: 32, backgroundColor: '#07131D', overflow: 'hidden', position: 'relative' },
   videoGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 145, backgroundColor: '#173D52', opacity: 0.92 },
   videoBadge: { position: 'absolute', top: 18, left: 18, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -4,13 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitives';
 import { GuideRouteMap, SafetyNote } from '../components/GuideVisuals';
 import { CancelledWalkState } from '../components/CancelledWalkState';
+import { getMapboxTokenSafely } from '../config';
 import { routeStops } from '../data/mock';
 import { MarketplaceRequest } from '../api';
 import { formatDuration, formatEstimateTotal } from '../format';
+import { useRoutePolyline } from '../hooks/useRoutePolyline';
 import { getRequestActionState } from '../session/requestLifecycle';
 
 export function RouteDetailsScreen({ request, onContinue }: { request?: MarketplaceRequest; onContinue: () => void }) {
   const actionState = getRequestActionState(request);
+  const mapboxToken = getMapboxTokenSafely();
+  const routePolyline = useRoutePolyline(request?.origin, request?.destination, mapboxToken);
   const continueToChecklist = () => {
     if (actionState.kind === 'cancelled') return;
     onContinue();
@@ -28,7 +32,7 @@ export function RouteDetailsScreen({ request, onContinue }: { request?: Marketpl
   return (
     <View>
       <Header kicker="Route details" title="Confirm the walk path before you head out." body="Route details are read from the accepted traveler request." />
-      <GuideRouteMap />
+      <GuideRouteMap origin={request?.origin} destination={request?.destination} mapboxToken={mapboxToken} routePolyline={routePolyline} />
       <Card style={styles.routeCard}>
         <Text style={styles.sectionTitle}>Start</Text>
         <Text style={styles.routeText}>{request?.origin.label ?? 'No request selected'}</Text>
