@@ -17,11 +17,18 @@ const checklistItems = [
 
 export function ChecklistScreen({ request, onReadyChange, onStartStream }: { request?: MarketplaceRequest; onReadyChange?: (ready: boolean) => void; onStartStream: () => void }) {
   const [checked, setChecked] = useState<string[]>([]);
-  const toggle = (item: string) => setChecked((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
+  const actionState = getRequestActionState(request);
+  const toggle = (item: string) => {
+    if (actionState.kind === 'cancelled') return;
+    setChecked((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
+  };
   const readyCount = checked.length;
   const missingItems = checklistItems.filter((item) => !checked.includes(item));
   const allChecked = missingItems.length === 0;
-  const actionState = getRequestActionState(request);
+  const startStream = () => {
+    if (actionState.kind === 'cancelled' || !allChecked) return;
+    onStartStream();
+  };
 
   useEffect(() => {
     onReadyChange?.(actionState.kind === 'actionable' && allChecked);
@@ -75,7 +82,7 @@ export function ChecklistScreen({ request, onReadyChange, onStartStream }: { req
       <Button
         label={allChecked ? 'Start shared live session' : 'Complete checklist first'}
         icon={allChecked ? 'videocam' : 'lock-closed'}
-        onPress={onStartStream}
+        onPress={startStream}
         disabled={!allChecked}
         style={{ marginTop: 18 }}
       />

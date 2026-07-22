@@ -11,6 +11,10 @@ import { getRequestActionState } from '../session/requestLifecycle';
 
 export function RouteDetailsScreen({ request, onContinue }: { request?: MarketplaceRequest; onContinue: () => void }) {
   const actionState = getRequestActionState(request);
+  const continueToChecklist = () => {
+    if (actionState.kind === 'cancelled') return;
+    onContinue();
+  };
 
   if (actionState.kind === 'cancelled') {
     return (
@@ -51,7 +55,7 @@ export function RouteDetailsScreen({ request, onContinue }: { request?: Marketpl
         ))}
       </Card>
       <SafetyNote />
-      <Button label="Open pre-walk checklist" icon="checkmark-done" onPress={onContinue} style={{ marginTop: 18 }} />
+      <Button label="Open pre-walk checklist" icon="checkmark-done" onPress={continueToChecklist} style={{ marginTop: 18 }} />
     </View>
   );
 }

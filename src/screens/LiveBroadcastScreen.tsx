@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BroadcasterPlaceholder, GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
+import { GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
+import { GuideBroadcastVideo } from '../components/GuideBroadcastVideo';
 import { Button, Card, colors } from '../components/Primitives';
 import { CancelledWalkState } from '../components/CancelledWalkState';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
 import { formatDuration } from '../format';
-import { getRequestActionState } from '../session/requestLifecycle';
+import { canRunGuideWalkAction, getRequestActionState } from '../session/requestLifecycle';
+import { useGuideBroadcast } from '../session/useGuideBroadcast';
 
 export function LiveBroadcastScreen({
   request,
@@ -31,6 +33,7 @@ export function LiveBroadcastScreen({
   const actionState = getRequestActionState(request);
   const walkEnded = request?.status === 'completed';
   const sessionReady = Boolean(request?.sessionId && request?.status === 'live' && actionState.kind === 'actionable');
+  const broadcast = useGuideBroadcast(request?.sessionId ?? undefined, sessionReady);
   const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
@@ -51,7 +54,7 @@ export function LiveBroadcastScreen({
   }
 
   const sendSessionEvent = async (text: string, success: string) => {
-    if (!sessionReady) {
+    if (!canRunGuideWalkAction(request) || !sessionReady) {
       setActionNote('Controls unlock after the shared session starts.');
       Alert.alert('Session not ready', 'Start the shared live session first.');
       return;
@@ -68,26 +71,32 @@ export function LiveBroadcastScreen({
   const sendReply = () => sendSessionEvent('Guide message: I’ll slow down at the next corner.', 'Message sent to the traveler.');
 
   const startTalking = () => {
-    if (!sessionReady) return;
+    if (!canRunGuideWalkAction(request) || !sessionReady) return;
     setTalking(true);
     void sendSessionEvent('🎙️ Guide is holding to talk.', 'Talk status sent to the traveler.');
   };
 
   const stopTalking = () => {
-    if (!talking) return;
+    if (!canRunGuideWalkAction(request) || !talking) return;
     setTalking(false);
     void sendSessionEvent('🎙️ Guide finished talking.', 'Talk status ended.');
   };
 
   const endWalk = async () => {
-    if (!sessionReady) return;
+    if (!canRunGuideWalkAction(request) || !sessionReady) return;
     const ended = await onEnd();
     if (ended) {
+      broadcast.stop();
       setActionNote('Walk ended for both sides. Opening earnings.');
       return;
     }
     setActionNote('The walk is still live. Please retry ending it.');
     Alert.alert('Walk still live', 'We could not end the shared walk. Check your connection and retry.');
+  };
+
+  const togglePaused = () => {
+    if (!canRunGuideWalkAction(request) || !sessionReady || walkEnded) return;
+    setPaused((value) => !value);
   };
 
   return (
@@ -99,7 +108,7 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.timerPill}><Text style={styles.timerText}>{walkEnded ? 'ENDED' : (request?.status === 'live' ? 'LIVE' : 'Ready')}</Text></View>
       </View>
-      <BroadcasterPlaceholder guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
+      <GuideBroadcastVideo connectionProps={broadcast.connectionProps} guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
           <View style={styles.alertRow}>
@@ -128,7 +137,7 @@ export function LiveBroadcastScreen({
             <Text style={[styles.holdButtonText, talking && styles.holdButtonTextActive]}>{talking ? 'Talking…' : 'Hold to talk'}</Text>
           </TouchableOpacity>
           <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
-          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={() => setPaused((value) => !value)} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
+          <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={togglePaused} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
           <Button label={walkEnded ? 'Walk ended' : 'End walk'} icon="stop-circle" variant="danger" onPress={() => void endWalk()} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
         </View>
         <Text style={styles.actionNote}>{sessionReady ? actionNote : 'Controls unlock after the shared live session starts.'}</Text>

@@ -26,6 +26,9 @@ export const colors = {
   danger: '#B54747',
   coral: '#E76F51',
   lavender: '#ECE8FF',
+  qaBuildBadgeBackground: '#4A1D00',
+  qaBuildBadgeBorder: '#FFB547',
+  qaBuildBadgeText: '#FFFFFF',
 };
 
 export function Button({
