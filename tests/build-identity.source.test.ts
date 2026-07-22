@@ -1,10 +1,27 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('expo-constants', () => ({
+  default: {
+    expoConfig: {
+      extra: {
+        qaBuild: {
+          commit: 'abc1234',
+          branch: 'peter-dev',
+          purpose: 'LW-31 Android source recovery QA',
+          label: 'QA BUILD · abc1234 · peter-dev · LW-31 Android source recovery QA',
+        },
+      },
+    },
+  },
+}));
+
 import {
   ACTIVE_BUILD_METADATA,
   PRODUCTION_BUILD_METADATA,
   QA_BUILD_METADATA,
+  parseQaBuildMetadata,
   renderQaBuildIdentity,
 } from '../src/buildIdentity';
 
@@ -25,22 +42,24 @@ function contrastRatio(foreground: string, background: string) {
 }
 
 describe('Guide source build identity', () => {
-  it('renders the committed QA identity without environment or Expo config injection', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/buildIdentity.ts'), 'utf8');
-
-    expect(source).not.toMatch(/process\.env|expo-constants|Constants\.expoConfig/);
+  it('renders the QA identity injected from the exact staged Git checkout', () => {
     expect(QA_BUILD_METADATA).toEqual({
-      commit: 'c204302',
+      commit: 'abc1234',
       branch: 'peter-dev',
-      purpose: 'launch + accepted/ready cancellation QA',
-      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
+      purpose: 'LW-31 Android source recovery QA',
+      label: 'QA BUILD · abc1234 · peter-dev · LW-31 Android source recovery QA',
     });
     expect(renderQaBuildIdentity(ACTIVE_BUILD_METADATA)).toEqual({
       testID: 'qa-build-badge',
       labelTestID: 'qa-build-badge-label',
-      accessibilityLabel: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
+      accessibilityLabel: 'QA BUILD · abc1234 · peter-dev · LW-31 Android source recovery QA',
+      label: 'QA BUILD · abc1234 · peter-dev · LW-31 Android source recovery QA',
     });
+  });
+
+  it('rejects incomplete runtime metadata', () => {
+    expect(parseQaBuildMetadata({ commit: 'abc1234', branch: 'peter-dev' })).toBeNull();
+    expect(parseQaBuildMetadata(null)).toBeNull();
   });
 
   it('renders no identity for the production/main metadata path', () => {

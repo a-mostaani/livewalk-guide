@@ -3,10 +3,9 @@ import { GuideBroadcastController, getConnectionProps, type LiveKitTokenResult }
 
 const tokenResult: LiveKitTokenResult = {
   token: 'jwt-token',
+  wsUrl: 'wss://livewalk-test.livekit.cloud',
   room: 'session-1',
-  identity: 'usr_guide',
-  canPublish: true,
-  expiresIn: 600,
+  role: 'guide',
 };
 
 function deferred<T>() {
@@ -26,21 +25,13 @@ describe('GuideBroadcastController', () => {
 
     const connecting = controller.start('session-1');
     expect(controller.getState()).toEqual({ status: 'connecting', sessionId: 'session-1' });
-    expect(getConnectionProps(controller.getState())).toEqual({ connect: false, token: undefined, video: false, audio: false });
+    expect(getConnectionProps(controller.getState())).toEqual({ connect: false, token: undefined, serverUrl: undefined, video: false, audio: false });
 
     const ready = await connecting;
     expect(fetchToken).toHaveBeenCalledWith('session-1');
     expect(fetchToken).toHaveBeenCalledTimes(1);
-    expect(ready).toEqual({ status: 'ready', sessionId: 'session-1', token: 'jwt-token', room: 'session-1', canPublish: true });
-    expect(getConnectionProps(ready)).toEqual({ connect: true, token: 'jwt-token', video: true, audio: true });
-  });
-
-  it('does not publish when the server did not grant publish permission (subscribe-only role)', async () => {
-    const fetchToken = vi.fn().mockResolvedValue({ ...tokenResult, canPublish: false });
-    const controller = new GuideBroadcastController({ fetchToken });
-
-    const ready = await controller.start('session-1');
-    expect(getConnectionProps(ready)).toEqual({ connect: true, token: 'jwt-token', video: false, audio: false });
+    expect(ready).toEqual({ status: 'ready', sessionId: 'session-1', token: 'jwt-token', wsUrl: 'wss://livewalk-test.livekit.cloud', room: 'session-1' });
+    expect(getConnectionProps(ready)).toEqual({ connect: true, token: 'jwt-token', serverUrl: 'wss://livewalk-test.livekit.cloud', video: true, audio: true });
   });
 
   it('dedupes overlapping start() calls for the same session (single-flight)', async () => {
@@ -81,7 +72,7 @@ describe('GuideBroadcastController', () => {
     const stale = controller.start('session-1');
     const fresh = await controller.start('session-2');
 
-    expect(fresh).toEqual({ status: 'ready', sessionId: 'session-2', token: 'jwt-token', room: 'session-2', canPublish: true });
+    expect(fresh).toEqual({ status: 'ready', sessionId: 'session-2', token: 'jwt-token', wsUrl: 'wss://livewalk-test.livekit.cloud', room: 'session-2' });
 
     firstGate.resolve({ ...tokenResult, room: 'session-1' });
     await stale;
@@ -94,7 +85,7 @@ describe('GuideBroadcastController', () => {
 
     const errored = await controller.start('session-1');
     expect(errored).toEqual({ status: 'error', sessionId: 'session-1', message: 'Cannot reach LiveWalk right now.' });
-    expect(getConnectionProps(errored)).toEqual({ connect: false, token: undefined, video: false, audio: false });
+    expect(getConnectionProps(errored)).toEqual({ connect: false, token: undefined, serverUrl: undefined, video: false, audio: false });
   });
 
   it('stop() on an already-idle controller is a no-op', () => {

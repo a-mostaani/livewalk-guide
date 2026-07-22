@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 
 type LiveWalkExtra = {
   apiBaseUrl?: string;
-  livekitWsUrl?: string;
   mapboxTokenWeb?: string;
   mapboxTokenMobile?: string;
 };
@@ -27,7 +26,6 @@ function cleanMapboxToken(value: string | undefined, target: 'web' | 'mobile'): 
 const extra = getLiveWalkExtra();
 
 export const API_BASE = cleanApiBaseUrl(extra.apiBaseUrl);
-export const LIVEKIT_WS_URL = extra.livekitWsUrl?.trim() ?? '';
 export function getMapboxTokenForCurrentPlatform(): string {
   return Platform.OS === 'web'
     ? cleanMapboxToken(extra.mapboxTokenWeb, 'web')

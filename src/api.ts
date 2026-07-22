@@ -149,12 +149,11 @@ export async function updateSessionLocation(sessionId: string, payload: SessionL
 export type LiveKitTokenResponse = {
   ok: true;
   token: string;
+  wsUrl: string;
   room: string;
-  identity: string;
-  canPublish: boolean;
-  expiresIn: number;
+  role: 'guide';
 };
 
 export async function fetchLiveKitToken(sessionId: string) {
-  return api<LiveKitTokenResponse>(`/api/sessions/${sessionId}/livekit-token`, { method: 'POST' });
+  return api<LiveKitTokenResponse>(`/api/sessions/${sessionId}/media-token`, { method: 'POST' });
 }

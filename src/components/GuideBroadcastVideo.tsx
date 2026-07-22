@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import { LiveKitRoom, VideoTrack } from '@livekit/react-native';
 import { useLocalParticipant } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import { LIVEKIT_WS_URL } from '../config';
 import { BroadcasterPlaceholder } from './GuideVisuals';
 import type { GuideBroadcastConnectionProps } from '../session/guideBroadcast';
 
@@ -22,13 +21,13 @@ export function GuideBroadcastVideo({
   guideName: string;
   travelerName: string;
 }) {
-  if (!connectionProps.connect || !connectionProps.token) {
+  if (!connectionProps.connect || !connectionProps.token || !connectionProps.serverUrl) {
     return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} />;
   }
   return (
     <View style={styles.wrapper}>
       <LiveKitRoom
-        serverUrl={LIVEKIT_WS_URL}
+        serverUrl={connectionProps.serverUrl}
         token={connectionProps.token}
         connect={connectionProps.connect}
         video={connectionProps.video}
