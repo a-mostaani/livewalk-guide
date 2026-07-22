@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
     "test": "vitest run",
-    "check:android-config": "node scripts/check-android-config.mjs",
     "validate:session-request": "vitest run tests/session-request.test.ts"
   },
   "dependencies": {

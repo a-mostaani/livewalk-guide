@@ -53,17 +53,23 @@ npm run android
 Expo will open the app on the running emulator.
 
 
-## Android QA build readiness
+## Native/dev build readiness
 
-Android QA APKs are compiled by the dedicated builder from a clean, pushed `peter-dev` checkout staged with its `.git` metadata. The static Expo config derives the exact short commit and branch from that checkout and exposes `QA BUILD · <commit> · peter-dev · LW-31 Android source recovery QA` in the shared app header. A source copy without traceable Git metadata is rejected instead of producing an anonymous QA APK.
+LW-8 prepares the Guide app for native-device features such as real GPS, camera, microphone, and future live media modules. This app now includes `expo-dev-client` and an `eas.json` with development/internal Android APK profiles.
 
-The dedicated builder does not use Expo project registration or EAS project linkage, so `extra.eas.projectId` is intentionally absent. It requires the stable Android package `com.livewalk.guide`, which is distinct from Traveler's `com.livewalk.traveler`. The checked-in `eas.json` remains valid for teams that separately use EAS: `development` is a dev-client APK, `preview` is a standalone internal APK, and `production` is an Android App Bundle. None of those profiles is used by the dedicated builder.
+For local native development, use a development build instead of Expo Go once native modules are added:
 
-Run `npm run check:android-config` before staging a QA build. It evaluates Expo config in the same secret-less environment shape, validates the package and profile separation, and checks that the visible QA identity matches the current Git checkout. Traveler's Mapbox client configuration is deliberately not copied: the current Guide source does not call Mapbox, so it is not a Guide build prerequisite.
+```bash
+npm install
+npx eas build --profile development --platform android
+npx expo start --dev-client
+```
+
+For the current demo APKs, keep using the published installable Android builds from the LiveWalk APK download page. The existing demo flow should behave the same; LW-8 only adds the native foundation.
 
 ## Runtime configuration
 
-The published LiveWalk API URL is committed client configuration so the secret-less Android builder produces the same runtime every time. The app obtains the public LiveKit WebSocket URL together with its short-lived session token from the backend `/media-token` response; private LiveKit credentials and signing material never enter the app or build configuration. Optional Mapbox variables remain for future Guide map UI and are not required by the current source.
+Copy `.env.example` to `.env` for local development, or set the same variables in the EAS build environment selected by the profile (`development`, `preview`, or `production`). `app.config.js` reads `MAPBOX_TOKEN_MOBILE` during EAS configuration and writes it to `extra.mapboxTokenMobile`, which the Android and iOS runtime selects. Use the real restricted public Mapbox token in EAS only; never commit it or substitute a fallback token. `LIVEKIT_WS_URL` is a public WebSocket endpoint and is copied into `extra.livekitWsUrl`; it identifies the LiveKit server but does not authorize a room connection. Keep LiveKit API credentials and all signing material out of this app.
 
 ## Useful development commands
 
@@ -72,7 +78,6 @@ npm start          # Start Expo dev server
 npm run android    # Start on Android device/emulator
 npm run web        # Optional browser preview for fast UI checks
 npm run typecheck  # TypeScript verification
-npm run check:android-config # Secret-less Expo/package/build-profile validation
 npm run export:web # Static web export check
 ```
 

@@ -1,48 +1,16 @@
-const { execFileSync } = require('node:child_process');
-
 const DEFAULT_API_BASE_URL = 'https://rendezvous-livewalk-api.webpeter.com';
-const QA_BUILD_PURPOSE = 'LW-31 Android source recovery QA';
 
 function cleanUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
-function readGit(args) {
-  try {
-    return execFileSync('git', args, { cwd: __dirname, encoding: 'utf8' }).trim();
-  } catch {
-    return '';
-  }
-}
-
-function readSourceIdentity() {
-  return {
-    commit: readGit(['rev-parse', '--short=7', 'HEAD']),
-    branch: readGit(['branch', '--show-current']),
-  };
-}
-
-function resolveQaBuildMetadata(sourceIdentity = readSourceIdentity()) {
-  if (sourceIdentity.branch === 'main') return undefined;
-  if (sourceIdentity.branch !== 'peter-dev' || !/^[0-9a-f]{7}$/.test(sourceIdentity.commit)) {
-    throw new Error('Guide QA config requires a peter-dev Git checkout with .git metadata.');
-  }
-
-  return {
-    commit: sourceIdentity.commit,
-    branch: sourceIdentity.branch,
-    purpose: QA_BUILD_PURPOSE,
-    label: `QA BUILD · ${sourceIdentity.commit} · ${sourceIdentity.branch} · ${QA_BUILD_PURPOSE}`,
-  };
-}
-
-function createAppConfig(config, env = process.env, sourceIdentity = readSourceIdentity()) {
+function createAppConfig(config, env = process.env) {
   const apiBaseUrl = cleanUrl(
     env.LIVEWALK_API_BASE_URL ?? env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
   );
+  const livekitWsUrl = cleanUrl(env.LIVEKIT_WS_URL?.trim() ?? '');
   const mapboxTokenWeb = env.MAPBOX_TOKEN_WEB?.trim();
   const mapboxTokenMobile = env.MAPBOX_TOKEN_MOBILE?.trim();
-  const qaBuild = resolveQaBuildMetadata(sourceIdentity);
 
   return {
     ...config,
@@ -73,9 +41,9 @@ function createAppConfig(config, env = process.env, sourceIdentity = readSourceI
     extra: {
       ...config.extra,
       apiBaseUrl,
+      livekitWsUrl,
       mapboxTokenWeb,
       mapboxTokenMobile,
-      ...(qaBuild ? { qaBuild } : {}),
     },
   };
 }
@@ -85,7 +53,5 @@ function appConfig({ config }) {
 }
 
 appConfig.createAppConfig = createAppConfig;
-appConfig.readSourceIdentity = readSourceIdentity;
-appConfig.resolveQaBuildMetadata = resolveQaBuildMetadata;
 
 module.exports = appConfig;

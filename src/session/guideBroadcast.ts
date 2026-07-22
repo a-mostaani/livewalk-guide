@@ -1,14 +1,15 @@
 export type LiveKitTokenResult = {
   token: string;
-  wsUrl: string;
   room: string;
-  role: 'guide';
+  identity: string;
+  canPublish: boolean;
+  expiresIn: number;
 };
 
 export type GuideBroadcastState =
   | { status: 'idle' }
   | { status: 'connecting'; sessionId: string }
-  | { status: 'ready'; sessionId: string; token: string; wsUrl: string; room: string }
+  | { status: 'ready'; sessionId: string; token: string; room: string; canPublish: boolean }
   | { status: 'error'; sessionId: string; message: string };
 
 export type GuideBroadcastDeps = {
@@ -18,7 +19,6 @@ export type GuideBroadcastDeps = {
 export type GuideBroadcastConnectionProps = {
   connect: boolean;
   token: string | undefined;
-  serverUrl: string | undefined;
   video: boolean;
   audio: boolean;
 };
@@ -55,7 +55,7 @@ export class GuideBroadcastController {
     const promise: Promise<GuideBroadcastState> = this.deps.fetchToken(sessionId).then(
       (result) => {
         if (epoch !== this.epoch) return this.state;
-        this.state = { status: 'ready', sessionId, token: result.token, wsUrl: result.wsUrl, room: result.room };
+        this.state = { status: 'ready', sessionId, token: result.token, room: result.room, canPublish: result.canPublish };
         return this.state;
       },
       (error: unknown) => {
@@ -79,6 +79,6 @@ export class GuideBroadcastController {
 }
 
 export function getConnectionProps(state: GuideBroadcastState): GuideBroadcastConnectionProps {
-  if (state.status !== 'ready') return { connect: false, token: undefined, serverUrl: undefined, video: false, audio: false };
-  return { connect: true, token: state.token, serverUrl: state.wsUrl, video: true, audio: true };
+  if (state.status !== 'ready') return { connect: false, token: undefined, video: false, audio: false };
+  return { connect: true, token: state.token, video: state.canPublish, audio: state.canPublish };
 }
