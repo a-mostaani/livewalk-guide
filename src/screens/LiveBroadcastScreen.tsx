@@ -112,7 +112,12 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.timerPill}><Text style={styles.timerText}>{walkEnded ? 'ENDED' : (request?.status === 'live' ? 'LIVE' : 'Ready')}</Text></View>
       </View>
-      <GuideBroadcastVideo connectionProps={broadcast.connectionProps} guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
+      <GuideBroadcastVideo
+        connectionProps={broadcast.connectionProps}
+        guideName={guideName.trim() || 'Guide'}
+        travelerName={travelerName}
+        errorMessage={broadcast.state.status === 'error' ? broadcast.state.message : undefined}
+      />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
           <View style={styles.alertRow}>

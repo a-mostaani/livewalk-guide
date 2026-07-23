@@ -45,10 +45,12 @@ export function GuideBroadcastVideo({
   connectionProps,
   guideName,
   travelerName,
+  errorMessage,
 }: {
   connectionProps: GuideBroadcastConnectionProps;
   guideName: string;
   travelerName: string;
+  errorMessage?: string;
 }) {
   // Environment (back) camera by default - a walking-tour guide broadcasts
   // their surroundings to the traveler, not a selfie view. The guide can
@@ -56,7 +58,7 @@ export function GuideBroadcastVideo({
   const [facingMode, setFacingMode] = useState<FacingMode>('environment');
 
   if (!connectionProps.connect || !connectionProps.token) {
-    return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} />;
+    return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} errorMessage={errorMessage} />;
   }
   return (
     <View style={styles.wrapper}>

@@ -102,7 +102,18 @@ export function GuideRouteMap({
   );
 }
 
-export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Traveler' }: { guideName?: string; travelerName?: string }) {
+export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Traveler', errorMessage }: { guideName?: string; travelerName?: string; errorMessage?: string }) {
+  if (errorMessage) {
+    return (
+      <View style={styles.video}>
+        <View style={styles.videoCenter}>
+          <Ionicons name="videocam-off" size={40} color={colors.white} />
+          <Text style={styles.videoEyebrow}>Camera unavailable</Text>
+          <Text style={styles.videoText}>{errorMessage}</Text>
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={styles.video}>
       <View style={styles.videoGlow} />
