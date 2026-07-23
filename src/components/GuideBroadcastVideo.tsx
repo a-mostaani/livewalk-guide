@@ -3,7 +3,7 @@ import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveKitRoom, VideoTrack } from '@livekit/react-native';
 import { useLocalParticipant } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { LocalVideoTrack, Track } from 'livekit-client';
 import { LIVEKIT_WS_URL } from '../config';
 import { BroadcasterPlaceholder } from './GuideVisuals';
 import type { GuideBroadcastConnectionProps } from '../session/guideBroadcast';
@@ -26,7 +26,17 @@ function FlipCameraButton({ facingMode, onFlip }: { facingMode: FacingMode; onFl
 
   const flipCamera = async () => {
     const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
-    await localParticipant.setCameraEnabled(true, { facingMode: next });
+    // setCameraEnabled(true, ...) only unmutes an already-published track and
+    // silently ignores new capture options - it does not switch the physical
+    // camera. Restarting the existing LocalVideoTrack with a new facingMode
+    // constraint is what actually re-negotiates the device.
+    const publication = localParticipant.getTrackPublication(Track.Source.Camera);
+    const track = publication?.track;
+    if (track instanceof LocalVideoTrack) {
+      await track.restartTrack({ facingMode: next });
+    } else {
+      await localParticipant.setCameraEnabled(true, { facingMode: next });
+    }
     onFlip();
   };
 

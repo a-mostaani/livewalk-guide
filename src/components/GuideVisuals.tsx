@@ -73,6 +73,8 @@ export function GuideRouteMap({
   const originCoord = coordinate(origin);
   const destinationCoord = coordinate(destination);
   const imageUrl = buildRouteMapImageUrl({ origin: originCoord, destination: destinationCoord, routePolyline, mapboxToken });
+  const [imageFailed, setImageFailed] = React.useState(false);
+  React.useEffect(() => setImageFailed(false), [imageUrl]);
 
   if (!originCoord || !destinationCoord) {
     return (
@@ -94,9 +96,19 @@ export function GuideRouteMap({
     );
   }
 
+  if (imageFailed) {
+    return (
+      <View style={[styles.map, compact && styles.mapCompact, styles.mapWaiting]}>
+        <Ionicons name="map-outline" size={28} color={colors.blue} />
+        <Text style={styles.mapWaitingTitle}>Map preview unavailable</Text>
+        <Text style={styles.mapWaitingText}>The Mapbox token could not load a map image. It may be missing the Static Images (styles:tiles) scope.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.map, compact && styles.mapCompact]}>
-      <Image source={{ uri: imageUrl }} style={styles.mapImage} resizeMode="cover" />
+      <Image source={{ uri: imageUrl }} style={styles.mapImage} resizeMode="cover" onError={() => setImageFailed(true)} />
       <Text style={styles.mapLabel}>{routePolyline ? 'Planned walking route' : 'Route preview'}</Text>
     </View>
   );
