@@ -13,6 +13,24 @@ type FacingMode = 'user' | 'environment';
 function LocalCameraPreview({ facingMode }: { facingMode: FacingMode }) {
   const { cameraTrack, localParticipant } = useLocalParticipant();
   const trackRef = cameraTrack ? { participant: localParticipant, publication: cameraTrack, source: Track.Source.Camera } : undefined;
+  const localVideoTrack = cameraTrack?.track;
+
+  // No explicit VideoCaptureOptions/TrackPublishOptions are set anywhere in
+  // this component, so LiveKit's defaults apply: h720 (1280x720) capture
+  // with simulcast on, auto-deriving a q(~180p)/h(~360p)/f(720p) ladder for
+  // a 16:9 source. Log what's actually achieved on this device (cameras
+  // don't always support the exact requested resolution) and the real
+  // encoding parameters applied to the sender for each simulcast layer.
+  useEffect(() => {
+    if (!(localVideoTrack instanceof LocalVideoTrack)) return;
+    const settings = localVideoTrack.mediaStreamTrack?.getSettings();
+    const encodings = localVideoTrack.sender?.getParameters().encodings;
+    console.log(
+      `[LiveWalk] guide capture: ${settings?.width}x${settings?.height}@${settings?.frameRate}fps`,
+      '| simulcast encodings:',
+      encodings?.map((e) => ({ rid: e.rid, maxBitrate: e.maxBitrate, scaleResolutionDownBy: e.scaleResolutionDownBy, maxFramerate: e.maxFramerate })),
+    );
+  }, [localVideoTrack]);
 
   // zOrder=1 ("media overlay") matches the LiveKit/react-native-webrtc docs'
   // recommendation for the local preview. The default (unset) zOrder has been
