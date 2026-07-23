@@ -1,7 +1,27 @@
 const DEFAULT_API_BASE_URL = 'https://rendezvous-livewalk-api.webpeter.com';
+const COMMITTED_PUBLIC_MOBILE_MAPBOX_TOKEN = 'pk.eyJ1IjoiYS1tb3N0IiwiYSI6ImNtcmh0M2s2ODFmbHAyeHF6N3k2NjNzdHAifQ.fC7tosE6isRH40dtUXq2Vw';
 
 function cleanUrl(value) {
   return value.replace(/\/+$/, '');
+}
+
+function isPublicMapboxToken(value) {
+  return value.length >= 20 && /^pk\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value);
+}
+
+function resolveMobileMapboxToken(env) {
+  const override = env.MAPBOX_TOKEN_MOBILE?.trim() ?? '';
+  const fallback = COMMITTED_PUBLIC_MOBILE_MAPBOX_TOKEN.trim();
+
+  if (isPublicMapboxToken(override)) {
+    return override;
+  }
+
+  if (isPublicMapboxToken(fallback)) {
+    return fallback;
+  }
+
+  return '';
 }
 
 function createAppConfig(config, env = process.env) {
@@ -10,7 +30,7 @@ function createAppConfig(config, env = process.env) {
   );
   const livekitWsUrl = cleanUrl(env.LIVEKIT_WS_URL?.trim() ?? '');
   const mapboxTokenWeb = env.MAPBOX_TOKEN_WEB?.trim();
-  const mapboxTokenMobile = env.MAPBOX_TOKEN_MOBILE?.trim();
+  const mapboxTokenMobile = resolveMobileMapboxToken(env);
 
   return {
     ...config,

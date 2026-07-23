@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveKitRoom, VideoTrack } from '@livekit/react-native';
 import { useLocalParticipant } from '@livekit/components-react';
@@ -10,9 +10,19 @@ import type { GuideBroadcastConnectionProps } from '../session/guideBroadcast';
 
 type FacingMode = 'user' | 'environment';
 
-function LocalCameraPreview({ facingMode, onFlip }: { facingMode: FacingMode; onFlip: () => void }) {
-  const { localParticipant, cameraTrack } = useLocalParticipant();
+function LocalCameraPreview({ facingMode }: { facingMode: FacingMode }) {
+  const { cameraTrack, localParticipant } = useLocalParticipant();
   const trackRef = cameraTrack ? { participant: localParticipant, publication: cameraTrack, source: Track.Source.Camera } : undefined;
+
+  // zOrder=1 ("media overlay") matches the LiveKit/react-native-webrtc docs'
+  // recommendation for the local preview. The default (unset) zOrder has been
+  // observed to let the SurfaceView-backed video paint over RN sibling views
+  // on some Android devices, hiding the flip button rendered above it.
+  return <VideoTrack trackRef={trackRef} style={styles.video} objectFit="cover" mirror={facingMode === 'user'} zOrder={1} />;
+}
+
+function FlipCameraButton({ facingMode, onFlip }: { facingMode: FacingMode; onFlip: () => void }) {
+  const { localParticipant } = useLocalParticipant();
 
   const flipCamera = async () => {
     const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -21,12 +31,13 @@ function LocalCameraPreview({ facingMode, onFlip }: { facingMode: FacingMode; on
   };
 
   return (
-    <>
-      <VideoTrack trackRef={trackRef} style={styles.video} objectFit="cover" mirror={facingMode === 'user'} />
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Switch camera" style={styles.flipButton} onPress={() => void flipCamera()}>
+    // Forces this overlay onto its own hardware layer on Android so it
+    // reliably composites above the SurfaceView-backed video beneath it.
+    <View style={styles.flipButton} renderToHardwareTextureAndroid={Platform.OS === 'android'}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Switch camera" style={styles.flipButtonTouchable} onPress={() => void flipCamera()}>
         <Ionicons name="camera-reverse" size={22} color="#FFFFFF" />
       </TouchableOpacity>
-    </>
+    </View>
   );
 }
 
@@ -56,7 +67,8 @@ export function GuideBroadcastVideo({
         video={connectionProps.video ? { facingMode } : false}
         audio={connectionProps.audio}
       >
-        <LocalCameraPreview facingMode={facingMode} onFlip={() => setFacingMode((current) => current === 'environment' ? 'user' : 'environment')} />
+        <LocalCameraPreview facingMode={facingMode} />
+        <FlipCameraButton facingMode={facingMode} onFlip={() => setFacingMode((current) => current === 'environment' ? 'user' : 'environment')} />
       </LiveKitRoom>
     </View>
   );
@@ -71,6 +83,11 @@ const styles = StyleSheet.create({
     right: 14,
     width: 40,
     height: 40,
+    borderRadius: 20,
+  },
+  flipButtonTouchable: {
+    width: '100%',
+    height: '100%',
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
