@@ -90,6 +90,16 @@ export async function listPendingRequests() {
   return api<{ ok: true; requests: MarketplaceRequest[] }>('/api/requests?status=pending');
 }
 
+export type RequestStatusResponse = {
+  ok: true;
+  request: MarketplaceRequest;
+  session?: LiveSession | null;
+};
+
+export async function getRequest(id: string) {
+  return api<RequestStatusResponse>(`/api/requests/${id}`);
+}
+
 export async function acceptRequest(id: string) {
   return api<{ ok: true; request: MarketplaceRequest; session: LiveSession }>(`/api/requests/${id}/accept`, { method: 'POST' });
 }
@@ -134,4 +144,17 @@ export async function updateSessionLocation(sessionId: string, payload: SessionL
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export type LiveKitTokenResponse = {
+  ok: true;
+  token: string;
+  room: string;
+  identity: string;
+  canPublish: boolean;
+  expiresIn: number;
+};
+
+export async function fetchLiveKitToken(sessionId: string) {
+  return api<LiveKitTokenResponse>(`/api/sessions/${sessionId}/livekit-token`, { method: 'POST' });
 }

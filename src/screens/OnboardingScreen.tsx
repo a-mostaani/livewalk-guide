@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BrandMark, GuideRouteMap } from '../components/GuideVisuals';
+import { BrandMark } from '../components/GuideVisuals';
 import { Button, Card, Header, Stat, colors } from '../components/Primitives';
 
 export function OnboardingScreen({ onStart }: { onStart: () => void }) {
@@ -13,7 +13,6 @@ export function OnboardingScreen({ onStart }: { onStart: () => void }) {
         title="Turn local knowledge into guided video walks."
         body="Go online, accept traveler requests nearby, stream the route safely, and earn for real-time local presence, captions, translation, and route context."
       />
-      <GuideRouteMap />
       <View style={styles.stats}>
         <Stat label="Mock payout" value="$32" />
         <Stat label="Route" value="2.8 km" />

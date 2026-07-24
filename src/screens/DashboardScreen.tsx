@@ -5,15 +5,16 @@ import { Button, Card, Header, Pill, Stat, colors } from '../components/Primitiv
 import { guideProfile } from '../data/mock';
 import { MarketplaceRequest } from '../api';
 
-export function DashboardScreen({ online, pendingCount = 0, newestRequest, guideName, onToggleOnline, onViewRequest }: { online: boolean; pendingCount?: number; newestRequest?: MarketplaceRequest; guideName?: string; onToggleOnline: () => void; onViewRequest: () => void }) {
+export function DashboardScreen({ online, pendingCount = 0, newestRequest, guideName, guideCity, onToggleOnline, onViewRequest }: { online: boolean; pendingCount?: number; newestRequest?: MarketplaceRequest; guideName?: string; guideCity?: string; onToggleOnline: () => void; onViewRequest: () => void }) {
   const displayGuideName = guideName?.trim() || guideProfile.name;
   const guideInitials = displayGuideName.slice(0, 2).toUpperCase();
+  const dispatchCity = guideCity === 'other' ? 'Other' : guideCity?.trim() || guideProfile.city;
   const travelerName = newestRequest?.travelerName?.trim() || 'Traveler';
   return (
     <View>
       <Header
         kicker="Availability"
-        title={online ? 'You are available for nearby walks.' : 'Go online when you are ready to guide.'}
+        title={online ? `You are available for ${dispatchCity} walks.` : 'Go online when you are ready to guide.'}
         body="This guide dashboard keeps status, current area, language, rating, and today’s progress visible before requests arrive."
       />
       <Card style={styles.statusCard}>
@@ -35,7 +36,7 @@ export function DashboardScreen({ online, pendingCount = 0, newestRequest, guide
           <View style={{ flex: 1 }}>
             <Text style={styles.profileLabel}>Signed in guide</Text>
             <Text style={styles.name}>{displayGuideName}</Text>
-            <Text style={styles.meta}>{guideProfile.city} • {guideProfile.area}</Text>
+            <Text style={styles.meta}>Dispatch area: {dispatchCity}</Text>
           </View>
           <View style={styles.ratingPill}><Text style={styles.rating}>★ {guideProfile.rating}</Text></View>
         </View>

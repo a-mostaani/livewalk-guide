@@ -33,13 +33,6 @@ export const incomingRequest: TripRequest = {
   scheduledTime: 'Today, 16:30',
 };
 
-export const routeStops = [
-  { title: 'Meet at Hachikō Square', note: 'Open public plaza. Confirm network before starting.' },
-  { title: 'Ramen alley detour', note: 'Slow camera movement and explain shop signs.' },
-  { title: 'Cat Street side lane', note: 'Good low-traffic route for questions.' },
-  { title: 'Meiji Shrine forest entrance', note: 'Final stop, recap, and rating prompt.' },
-];
-
 export const captions = [
   'Guide: I am crossing into the quieter side street now. I will keep the phone steady.',
   'Translated: This small shrine is where commuters often stop before work.',

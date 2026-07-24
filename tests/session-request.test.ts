@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, isRequestCancelledError, readApiErrorCode } from '../src/apiErrors';
 import {
+  applyGuideActiveRequestUpdate,
   CANCELLED_WALK_DESCRIPTION,
   CANCELLED_WALK_TITLE,
   canFetchPendingRequests,
+  canRunGuideWalkAction,
   filterActionableRequests,
+  filterGuidePendingRequests,
   getRequestActionState,
+  getGuideScreenContent,
+  getGuideSelectedRequestState,
+  getGuideWorkflowRenderState,
+  GuideCancellationLatch,
   normalizeActiveRequestFromSession,
   RequestPollGate,
+  resolveGuidePendingSelection,
+  resolveGuideRequestDetail,
+  SingleFlightPoll,
   resolveGuideSessionPoll,
+  shouldPollGuideRequest,
+  shouldPollGuideSession,
   shouldRefreshGuideState,
   shouldReloadDashboard,
 } from '../src/session/requestLifecycle';
@@ -57,6 +69,30 @@ describe('Guide request lifecycle', () => {
 
     const failedPoll = gate.beginPoll();
     expect(gate.retain(failedPoll)).toEqual({ kind: 'retained', requests: [pendingRequest] });
+  });
+
+  it('coalesces overlapping slow availability polls so the newest request remains visible', async () => {
+    const gate = new RequestPollGate();
+    const flight = new SingleFlightPoll();
+    let release!: () => void;
+    const delayedResponse = new Promise<void>((resolve) => { release = resolve; });
+    let calls = 0;
+
+    const refresh = () => flight.run(async () => {
+      calls += 1;
+      const snapshot = gate.beginPoll();
+      await delayedResponse;
+      return gate.accept(snapshot, [pendingRequest]);
+    });
+
+    const first = refresh();
+    const overlapping = refresh();
+    expect(overlapping).toBe(first);
+    expect(calls).toBe(0);
+
+    release();
+    await expect(first).resolves.toEqual({ kind: 'accepted', requests: [pendingRequest] });
+    expect(calls).toBe(1);
   });
 
   it('reloads when the online dashboard regains focus', () => {
@@ -138,6 +174,208 @@ describe('Guide request lifecycle', () => {
 
     expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
     if (cancelledPoll.kind === 'cancelled') expect(getRequestActionState(cancelledPoll.request).kind).toBe('cancelled');
+  });
+
+  it('makes a cancelled pre-live walk terminal for Guide polling and actions', () => {
+    const acceptedRequest = {
+      ...pendingRequest,
+      id: 'request-terminal-cancel',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-terminal-cancel',
+    };
+    const cancelledPoll = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'cancelled' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    }, true);
+
+    expect(cancelledPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancelledPoll.kind === 'cancelled') {
+      expect(shouldPollGuideRequest(cancelledPoll.request)).toBe(false);
+      expect(shouldPollGuideSession(cancelledPoll.request)).toBe(false);
+      expect(canRunGuideWalkAction(cancelledPoll.request)).toBe(false);
+    }
+    expect(shouldPollGuideRequest(acceptedRequest)).toBe(true);
+    expect(shouldPollGuideSession(acceptedRequest)).toBe(true);
+    expect(canRunGuideWalkAction(acceptedRequest)).toBe(true);
+  });
+
+  it('keeps a cancelled-before-start workflow terminal when an older ready response finishes later', () => {
+    const acceptedRequest = {
+      ...pendingRequest,
+      id: 'request-terminal-render-state',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-terminal-render-state',
+    };
+    const cancellation = resolveGuideSessionPoll(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'cancelled' },
+      request: { ...acceptedRequest, status: 'cancelled' },
+    }, true);
+
+    expect(cancellation.kind).toBe('cancelled');
+    if (cancellation.kind !== 'cancelled') return;
+
+    const staleReadyResponse = resolveGuideSessionPoll(cancellation.request, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: acceptedRequest,
+    }, true);
+    const stateAfterStaleAction = applyGuideActiveRequestUpdate(cancellation.request, acceptedRequest.id, acceptedRequest);
+    const readyRequest = normalizeActiveRequestFromSession(acceptedRequest, {
+      session: { id: acceptedRequest.sessionId, requestId: acceptedRequest.id, status: 'ready' },
+      request: acceptedRequest,
+    });
+
+    expect(staleReadyResponse).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    expect(stateAfterStaleAction).toMatchObject({ status: 'cancelled' });
+    expect(getGuideWorkflowRenderState(stateAfterStaleAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
+    expect(canRunGuideWalkAction(stateAfterStaleAction)).toBe(false);
+    expect(getGuideWorkflowRenderState(pendingRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState(acceptedRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState(readyRequest).renderActionableControls).toBe(true);
+    expect(getGuideWorkflowRenderState({ ...acceptedRequest, status: 'live' }).renderActionableControls).toBe(true);
+  });
+
+  it('latches list/detail cancellation before a late stale response can rehydrate Guide controls', () => {
+    const selectedRequest = { ...pendingRequest, id: 'request-list-detail-cancel' };
+    const sessionId = 'session-list-detail-cancel';
+    const cancellationLatch = new GuideCancellationLatch();
+
+    expect(resolveGuidePendingSelection(selectedRequest, [selectedRequest], cancellationLatch)).toEqual({ kind: 'current' });
+
+    const missingFromPendingList = resolveGuidePendingSelection(selectedRequest, [], cancellationLatch);
+    expect(missingFromPendingList).toMatchObject({ kind: 'missing', request: { id: selectedRequest.id, status: 'cancelled' } });
+    expect(cancellationLatch.matches({ requestId: selectedRequest.id })).toBe(true);
+
+    const cancelledDetail = resolveGuideRequestDetail(selectedRequest, {
+      request: { ...selectedRequest, status: 'cancelled', sessionId },
+      session: { id: sessionId, status: 'cancelled' },
+    }, cancellationLatch);
+    expect(cancelledDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled', sessionId } });
+    expect(cancellationLatch.matches({ requestId: selectedRequest.id })).toBe(true);
+    expect(cancellationLatch.matches({ sessionId })).toBe(true);
+    expect(filterGuidePendingRequests([selectedRequest], cancellationLatch)).toEqual([]);
+
+    const pollGate = new RequestPollGate();
+    const initialListPoll = pollGate.beginPoll();
+    pollGate.accept(initialListPoll, [selectedRequest]);
+    pollGate.remove(selectedRequest.id);
+    expect(pollGate.retain(pollGate.beginPoll())).toEqual({ kind: 'retained', requests: [] });
+
+    if (cancelledDetail.kind !== 'cancelled') return;
+    const staleReadyRequest = { ...selectedRequest, status: 'accepted' as const, sessionId };
+    const lateSessionPoll = resolveGuideSessionPoll(cancelledDetail.request, {
+      session: { id: sessionId, requestId: selectedRequest.id, status: 'ready' },
+      request: staleReadyRequest,
+    }, true, cancellationLatch);
+    const lateAction = applyGuideActiveRequestUpdate(cancelledDetail.request, selectedRequest.id, staleReadyRequest, cancellationLatch);
+
+    expect(lateSessionPoll).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    expect(lateAction).toMatchObject({ status: 'cancelled' });
+    expect(getGuideWorkflowRenderState(lateAction)).toMatchObject({ kind: 'cancelled', renderActionableControls: false });
+  });
+
+  it('renders the selected accepted Ready screen as cancelled with zero workflow controls after a stale ready response', () => {
+    const acceptedReadyRequest = {
+      ...pendingRequest,
+      id: 'request-ready-cancelled-by-traveler',
+      status: 'accepted' as const,
+      guide: { id: 'guide-1', name: 'Guide' },
+      sessionId: 'session-ready-cancelled-by-traveler',
+    };
+    const cancellationLatch = new GuideCancellationLatch();
+
+    expect(getGuideScreenContent('checklist', getGuideSelectedRequestState(acceptedReadyRequest, [], cancellationLatch))).toMatchObject({
+      kind: 'content',
+      mountsChecklist: true,
+      mountsBottomNavigation: true,
+    });
+
+    const cancellationDetail = resolveGuideRequestDetail(acceptedReadyRequest, {
+      request: { ...acceptedReadyRequest, status: 'cancelled' },
+      session: { id: acceptedReadyRequest.sessionId, status: 'ready' },
+    }, cancellationLatch);
+
+    expect(cancellationDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (cancellationDetail.kind !== 'cancelled') return;
+    expect(cancellationLatch.matches({ requestId: acceptedReadyRequest.id, sessionId: acceptedReadyRequest.sessionId })).toBe(true);
+
+    const lateReadyResponse = resolveGuideSessionPoll(cancellationDetail.request, {
+      session: { id: acceptedReadyRequest.sessionId, requestId: acceptedReadyRequest.id, status: 'ready' },
+      request: acceptedReadyRequest,
+    }, true, cancellationLatch);
+    expect(lateReadyResponse).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    if (lateReadyResponse.kind !== 'cancelled') return;
+
+    expect(getGuideScreenContent('checklist', getGuideSelectedRequestState(lateReadyResponse.request, [], cancellationLatch))).toEqual({
+      kind: 'cancelled',
+      travelerCancelled: true,
+      mountsIncomingRequest: false,
+      mountsIncomingRequestActions: false,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
+      mountsBottomNavigation: false,
+    });
+    expect(shouldPollGuideRequest(lateReadyResponse.request)).toBe(false);
+    expect(shouldPollGuideSession(lateReadyResponse.request)).toBe(false);
+  });
+
+  it('keeps the mounted Incoming Request screen terminal after Traveler cancellation removes a selected pending request', () => {
+    const staleSelectedRequest = { ...pendingRequest, id: 'request-selected-then-cancelled' };
+    const cancellationLatch = new GuideCancellationLatch();
+    const selectedScreen = getGuideScreenContent('request', getGuideSelectedRequestState(staleSelectedRequest, [staleSelectedRequest], cancellationLatch));
+    expect(selectedScreen).toEqual({
+      kind: 'content',
+      travelerCancelled: false,
+      mountsIncomingRequest: true,
+      mountsIncomingRequestActions: true,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
+      mountsBottomNavigation: true,
+    });
+
+    const missingSelection = resolveGuidePendingSelection(staleSelectedRequest, [], cancellationLatch);
+    expect(missingSelection).toMatchObject({ kind: 'missing', request: { id: staleSelectedRequest.id, status: 'cancelled' } });
+    if (missingSelection.kind !== 'missing') return;
+
+    const cancelledScreen = getGuideScreenContent('request', getGuideSelectedRequestState(missingSelection.request, [], cancellationLatch));
+    expect(cancelledScreen).toEqual({
+      kind: 'cancelled',
+      travelerCancelled: true,
+      mountsIncomingRequest: false,
+      mountsIncomingRequestActions: false,
+      mountsRouteDetails: false,
+      mountsChecklist: false,
+      mountsLiveBroadcast: false,
+      mountsBottomNavigation: false,
+    });
+
+    const stalePendingDetail = resolveGuideRequestDetail(missingSelection.request, {
+      request: staleSelectedRequest,
+      session: null,
+    }, cancellationLatch);
+    const staleAcceptedRequest = { ...staleSelectedRequest, status: 'accepted' as const, sessionId: 'session-late-accepted' };
+    const staleAcceptedUpdate = applyGuideActiveRequestUpdate(missingSelection.request, staleSelectedRequest.id, staleAcceptedRequest, cancellationLatch);
+
+    expect(stalePendingDetail).toMatchObject({ kind: 'cancelled', request: { status: 'cancelled' } });
+    expect(staleAcceptedUpdate).toMatchObject({ status: 'cancelled' });
+    expect(getGuideScreenContent('request', getGuideSelectedRequestState(staleAcceptedUpdate, [], cancellationLatch))).toEqual(cancelledScreen);
+
+    const acceptedRequest = { ...pendingRequest, id: 'request-normal-accepted', status: 'accepted' as const, sessionId: 'session-normal-accepted' };
+    const readyRequest = { ...acceptedRequest, id: 'request-normal-ready' };
+    const liveRequest = { ...acceptedRequest, id: 'request-normal-live', status: 'live' as const };
+    for (const [screen, request] of [
+      ['request', pendingRequest],
+      ['route', acceptedRequest],
+      ['checklist', readyRequest],
+      ['live', liveRequest],
+    ] as const) {
+      const normalScreen = getGuideScreenContent(screen, getGuideSelectedRequestState(request, request.status === 'pending' ? [request] : [], cancellationLatch));
+      expect(normalScreen.kind).toBe('content');
+      expect(normalScreen.travelerCancelled).toBe(false);
+    }
   });
 
   type CancellationSignal = {
