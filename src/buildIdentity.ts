@@ -20,7 +20,7 @@ export const QA_BUILD_METADATA: QaBuildMetadata = {
 };
 
 export const PRODUCTION_BUILD_METADATA: QaBuildMetadata | null = null;
-export const ACTIVE_BUILD_METADATA: QaBuildMetadata | null = QA_BUILD_METADATA;
+export const ACTIVE_BUILD_METADATA = PRODUCTION_BUILD_METADATA as QaBuildMetadata | null;
 export const QA_BUILD_LABEL = ACTIVE_BUILD_METADATA?.label ?? null;
 
 export function renderQaBuildIdentity(metadata: QaBuildMetadata | null): QaBuildIdentityDisplay | null {
