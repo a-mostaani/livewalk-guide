@@ -25,7 +25,7 @@ function contrastRatio(foreground: string, background: string) {
 }
 
 describe('Guide source build identity', () => {
-  it('renders the committed QA identity without environment or Expo config injection', () => {
+  it('keeps the committed QA identity available without activating it in production', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/buildIdentity.ts'), 'utf8');
 
     expect(source).not.toMatch(/process\.env|expo-constants|Constants\.expoConfig/);
@@ -35,7 +35,7 @@ describe('Guide source build identity', () => {
       purpose: 'launch + accepted/ready cancellation QA',
       label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
     });
-    expect(renderQaBuildIdentity(ACTIVE_BUILD_METADATA)).toEqual({
+    expect(renderQaBuildIdentity(QA_BUILD_METADATA)).toEqual({
       testID: 'qa-build-badge',
       labelTestID: 'qa-build-badge-label',
       accessibilityLabel: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
@@ -43,8 +43,10 @@ describe('Guide source build identity', () => {
     });
   });
 
-  it('renders no identity for the production/main metadata path', () => {
+  it('renders no identity for the active production/main metadata path', () => {
     expect(PRODUCTION_BUILD_METADATA).toBeNull();
+    expect(ACTIVE_BUILD_METADATA).toBe(PRODUCTION_BUILD_METADATA);
+    expect(renderQaBuildIdentity(ACTIVE_BUILD_METADATA)).toBeNull();
     expect(renderQaBuildIdentity(PRODUCTION_BUILD_METADATA)).toBeNull();
   });
 
