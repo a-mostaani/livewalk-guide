@@ -40,16 +40,29 @@ function createAppConfig(config, env = process.env) {
     orientation: 'portrait',
     scheme: 'livewalk-guide',
     userInterfaceStyle: 'light',
-    splash: {
-      resizeMode: 'contain',
-      backgroundColor: '#FBF7EF',
-    },
+    icon: './assets/icon.png',
     assetBundlePatterns: ['**/*'],
-    plugins: ['expo-dev-client', '@livekit/react-native-expo-plugin', '@config-plugins/react-native-webrtc'],
+    plugins: [
+      'expo-dev-client',
+      '@livekit/react-native-expo-plugin',
+      '@config-plugins/react-native-webrtc',
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/splash.png',
+          resizeMode: 'contain',
+          backgroundColor: '#090F1E',
+        },
+      ],
+    ],
     newArchEnabled: false,
     android: {
       package: 'com.livewalk.guide',
       permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'CAMERA', 'RECORD_AUDIO'],
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#090F1E',
+      },
     },
     ios: {
       supportsTablet: true,
