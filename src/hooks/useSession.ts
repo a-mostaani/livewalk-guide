@@ -332,14 +332,35 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     }
   }, [activeRequest, canUpdateActiveRequest, markRequestCancelled, updateActiveRequest]);
 
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => setAppActive(nextState === 'active'));
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {
       if (activeRequest?.status !== 'cancelled') setLocationNote('GPS starts when the live session starts.');
       return;
     }
 
+    // expo-location's foreground watch is paused by the OS while the app is
+    // backgrounded or the screen locks - GPS (and camera publishing) simply
+    // stop with no signal to the traveler. Rather than chase true background
+    // location (which wouldn't keep the camera broadcasting anyway, since
+    // that also needs the foreground), surface it to the guide and force a
+    // clean resubscribe when the app comes back, instead of trusting the OS
+    // to silently resume the old subscription.
+    if (!appActive) {
+      setLocationNote('Paused - bring LiveWalk to the foreground to keep sharing your camera and GPS.');
+      return;
+    }
+
     let cancelled = false;
     let subscription: Location.LocationSubscription | undefined;
+    let sending = false;
+    let lastSentAt = 0;
     const sessionId = activeRequest.sessionId;
 
     const startPublishing = async () => {
@@ -359,6 +380,11 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
             distanceInterval: 5,
           },
           (position) => {
+            // Skip overlapping writes rather than let a slower, older
+            // request resolve after a newer one and stomp it in the backend.
+            if (sending || position.timestamp < lastSentAt) return;
+            sending = true;
+            lastSentAt = position.timestamp;
             void updateSessionLocation(sessionId, {
               label: 'Guide live position',
               lat: position.coords.latitude,
@@ -371,6 +397,8 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
               } else if (!cancelled) {
                 setLocationNote('GPS captured locally; retrying backend sync.');
               }
+            }).finally(() => {
+              sending = false;
             });
           },
         );
@@ -384,7 +412,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeRequest?.id, activeRequest?.sessionId, activeRequest?.status, markRequestCancelled]);
+  }, [activeRequest?.id, activeRequest?.sessionId, activeRequest?.status, appActive, markRequestCancelled]);
 
   return {
     pendingRequests,

@@ -33,3 +33,14 @@ export function getMapboxTokenForCurrentPlatform(): string {
     ? cleanMapboxToken(extra.mapboxTokenWeb, 'web')
     : cleanMapboxToken(extra.mapboxTokenMobile, 'mobile');
 }
+
+// Non-throwing variant for screens that should degrade gracefully (show a
+// "map token missing" state) instead of crashing when the token isn't
+// configured for this build.
+export function getMapboxTokenSafely(): string {
+  try {
+    return getMapboxTokenForCurrentPlatform();
+  } catch {
+    return '';
+  }
+}

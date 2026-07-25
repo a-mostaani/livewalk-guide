@@ -5,9 +5,11 @@ import { GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisu
 import { GuideBroadcastVideo } from '../components/GuideBroadcastVideo';
 import { Button, Card, colors } from '../components/Primitives';
 import { CancelledWalkState } from '../components/CancelledWalkState';
+import { getMapboxTokenSafely } from '../config';
 import { captions } from '../data/mock';
 import { MarketplaceRequest, SessionMessage } from '../api';
 import { formatDuration } from '../format';
+import { useRoutePolyline } from '../hooks/useRoutePolyline';
 import { canRunGuideWalkAction, getRequestActionState } from '../session/requestLifecycle';
 import { useGuideBroadcast } from '../session/useGuideBroadcast';
 
@@ -34,6 +36,8 @@ export function LiveBroadcastScreen({
   const walkEnded = request?.status === 'completed';
   const sessionReady = Boolean(request?.sessionId && request?.status === 'live' && actionState.kind === 'actionable');
   const broadcast = useGuideBroadcast(request?.sessionId ?? undefined, sessionReady);
+  const mapboxToken = getMapboxTokenSafely();
+  const routePolyline = useRoutePolyline(request?.origin, request?.destination, mapboxToken);
   const travelerName = request?.travelerName?.trim() || 'Traveler';
   const latestTravelerAlert = [...messages].reverse().find((message) =>
     message.senderRole === 'traveler' && (message.text.includes('STOP HERE') || message.text.includes('holding to talk') || message.text.includes('route change'))
@@ -108,7 +112,12 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.timerPill}><Text style={styles.timerText}>{walkEnded ? 'ENDED' : (request?.status === 'live' ? 'LIVE' : 'Ready')}</Text></View>
       </View>
-      <GuideBroadcastVideo connectionProps={broadcast.connectionProps} guideName={guideName.trim() || 'Guide'} travelerName={travelerName} />
+      <GuideBroadcastVideo
+        connectionProps={broadcast.connectionProps}
+        guideName={guideName.trim() || 'Guide'}
+        travelerName={travelerName}
+        errorMessage={broadcast.state.status === 'error' ? broadcast.state.message : undefined}
+      />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
           <View style={styles.alertRow}>
@@ -147,7 +156,7 @@ export function LiveBroadcastScreen({
           <View><Text style={styles.panelTitle}>GPS and route</Text><Text style={styles.panelSub}>{formatDuration(request?.durationMinutes)} route • {locationNote}</Text></View>
           <Ionicons name="navigate-circle" size={28} color={colors.blue} />
         </View>
-        <GuideRouteMap compact />
+        <GuideRouteMap origin={request?.origin} destination={request?.destination} mapboxToken={mapboxToken} routePolyline={routePolyline} compact />
         <ProgressRail progress={48} />
       </Card>
       <Card style={styles.panel}>

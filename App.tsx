@@ -77,6 +77,13 @@ function GuideApp() {
     }
   }, [screen, walkEnded]);
 
+  useEffect(() => {
+    if (travelerCancelled && isGuideWorkflowScreen(screen)) {
+      setScreen('dashboard');
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+    }
+  }, [screen, travelerCancelled]);
+
   const goPrevious = () => {
     if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]);
   };
