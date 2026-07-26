@@ -114,6 +114,7 @@ export function LiveBroadcastScreen({
       </View>
       <GuideBroadcastVideo
         connectionProps={broadcast.connectionProps}
+        sessionId={broadcast.state.status === 'ready' ? broadcast.state.sessionId : undefined}
         guideName={guideName.trim() || 'Guide'}
         travelerName={travelerName}
         errorMessage={broadcast.state.status === 'error' ? broadcast.state.message : undefined}

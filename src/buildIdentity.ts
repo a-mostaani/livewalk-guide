@@ -1,3 +1,6 @@
+import Constants from 'expo-constants';
+import { parseQaBuildMetadata } from './buildIdentityCore';
+
 export type QaBuildMetadata = {
   commit: string;
   branch: string;
@@ -12,16 +15,12 @@ export type QaBuildIdentityDisplay = {
   label: string;
 };
 
-export const QA_BUILD_METADATA: QaBuildMetadata = {
-  commit: 'c204302',
-  branch: 'peter-dev',
-  purpose: 'launch + accepted/ready cancellation QA',
-  label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-};
-
 export const PRODUCTION_BUILD_METADATA: QaBuildMetadata | null = null;
-export const ACTIVE_BUILD_METADATA = PRODUCTION_BUILD_METADATA as QaBuildMetadata | null;
+export const QA_BUILD_METADATA = parseQaBuildMetadata(Constants.expoConfig?.extra?.qaBuild);
+export const ACTIVE_BUILD_METADATA = QA_BUILD_METADATA;
 export const QA_BUILD_LABEL = ACTIVE_BUILD_METADATA?.label ?? null;
+
+export { parseQaBuildMetadata };
 
 export function renderQaBuildIdentity(metadata: QaBuildMetadata | null): QaBuildIdentityDisplay | null {
   if (!metadata) return null;

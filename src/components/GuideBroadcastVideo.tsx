@@ -1,12 +1,20 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LiveKitRoom, VideoTrack } from '@livekit/react-native';
-import { useLocalParticipant } from '@livekit/components-react';
-import { LocalVideoTrack, MediaDeviceFailure, Room, Track } from 'livekit-client';
+import { VideoTrack } from '@livekit/react-native';
+import { RoomContext, useLocalParticipant } from '@livekit/components-react';
+import {
+  LocalVideoTrack,
+  MediaDeviceFailure,
+  Room,
+  RoomEvent,
+  Track,
+  type VideoCaptureOptions,
+} from 'livekit-client';
 import { LIVEKIT_WS_URL } from '../config';
 import { BroadcasterPlaceholder } from './GuideVisuals';
 import type { GuideBroadcastConnectionProps } from '../session/guideBroadcast';
+import { GuideMediaLifecycle, type GuideMediaSource } from '../session/guideMediaLifecycle';
 
 type FacingMode = 'user' | 'environment';
 
@@ -39,30 +47,12 @@ function LocalCameraPreview({ facingMode }: { facingMode: FacingMode }) {
   return <VideoTrack trackRef={trackRef} style={styles.video} objectFit="cover" mirror={facingMode === 'user'} zOrder={1} />;
 }
 
-function FlipCameraButton({ facingMode, onFlip }: { facingMode: FacingMode; onFlip: () => void }) {
-  const { localParticipant } = useLocalParticipant();
-
-  const flipCamera = async () => {
-    const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
-    // setCameraEnabled(true, ...) only unmutes an already-published track and
-    // silently ignores new capture options - it does not switch the physical
-    // camera. Restarting the existing LocalVideoTrack with a new facingMode
-    // constraint is what actually re-negotiates the device.
-    const publication = localParticipant.getTrackPublication(Track.Source.Camera);
-    const track = publication?.track;
-    if (track instanceof LocalVideoTrack) {
-      await track.restartTrack({ facingMode: next });
-    } else {
-      await localParticipant.setCameraEnabled(true, { facingMode: next });
-    }
-    onFlip();
-  };
-
+function FlipCameraButton({ onFlip }: { onFlip: () => Promise<void> }) {
   return (
     // Forces this overlay onto its own hardware layer on Android so it
     // reliably composites above the SurfaceView-backed video beneath it.
     <View style={styles.flipButton} renderToHardwareTextureAndroid={Platform.OS === 'android'}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Switch camera" style={styles.flipButtonTouchable} onPress={() => void flipCamera()}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Switch camera" style={styles.flipButtonTouchable} onPress={() => void onFlip()}>
         <Ionicons name="camera-reverse" size={22} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
@@ -71,11 +61,13 @@ function FlipCameraButton({ facingMode, onFlip }: { facingMode: FacingMode; onFl
 
 export function GuideBroadcastVideo({
   connectionProps,
+  sessionId,
   guideName,
   travelerName,
   errorMessage,
 }: {
   connectionProps: GuideBroadcastConnectionProps;
+  sessionId?: string;
   guideName: string;
   travelerName: string;
   errorMessage?: string;
@@ -87,59 +79,179 @@ export function GuideBroadcastVideo({
   const [mediaError, setMediaError] = useState<string | undefined>(undefined);
   const roomRef = useRef<Room | undefined>(undefined);
   if (!roomRef.current) roomRef.current = new Room();
-  const retriedSourcesRef = useRef<Set<Track.Source>>(new Set());
+  const room = roomRef.current;
+  const cameraCaptureOptions = useMemo<VideoCaptureOptions>(() => ({ facingMode }), [facingMode]);
+  const cameraCaptureOptionsRef = useRef(cameraCaptureOptions);
+  cameraCaptureOptionsRef.current = cameraCaptureOptions;
+  const connectionEpochRef = useRef(0);
+  const roomTransitionRef = useRef<Promise<void>>(Promise.resolve());
+  const mediaLifecycleRef = useRef<GuideMediaLifecycle<VideoCaptureOptions> | undefined>(undefined);
 
-  // A fresh session gets a clean retry budget and clears any error left over
-  // from a previous booking cycle.
+  const diagnosticLog = useCallback((event: string, details: Record<string, unknown> = {}) => {
+    console.info(`[LiveWalk][LiveKit] ${event}`, details);
+  }, []);
+
+  if (!mediaLifecycleRef.current) {
+    mediaLifecycleRef.current = new GuideMediaLifecycle<VideoCaptureOptions>({
+      getCameraOptions: () => cameraCaptureOptionsRef.current,
+      startCamera: async (options) => {
+        await room.localParticipant.setCameraEnabled(true, options);
+      },
+      startMicrophone: async () => {
+        await room.localParticipant.setMicrophoneEnabled(true);
+      },
+      stopCamera: async () => {
+        await room.localParticipant.setCameraEnabled(false);
+      },
+      stopMicrophone: async () => {
+        await room.localParticipant.setMicrophoneEnabled(false);
+      },
+      restartCamera: async (options) => {
+        const publication = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        const track = publication?.track;
+        if (track instanceof LocalVideoTrack) await track.restartTrack(options);
+        else await room.localParticipant.setCameraEnabled(true, options);
+      },
+      onError: setMediaError,
+      onRecovered: () => setMediaError(undefined),
+      log: diagnosticLog,
+    });
+  }
+  const mediaLifecycle = mediaLifecycleRef.current;
+
+  const enqueueRoomTransition = useCallback((operation: () => Promise<void>) => {
+    const next = roomTransitionRef.current.then(operation, operation);
+    roomTransitionRef.current = next.then(() => undefined, () => undefined);
+    return next;
+  }, []);
+
   useEffect(() => {
-    retriedSourcesRef.current.clear();
-    setMediaError(undefined);
-  }, [connectionProps.token]);
+    const epoch = ++connectionEpochRef.current;
+    const token = connectionProps.token;
+    const shouldConnect = connectionProps.connect && Boolean(token);
+    const sessionKey = sessionId ?? 'unknown-session';
+    let connectedForEpoch = false;
 
-  // Right after a freshly-granted Android runtime permission, the very first
-  // camera/mic open can transiently fail before the OS settles the device -
-  // this was reported as "camera worked on the 2nd booking cycle, not the
-  // 1st". Retry once automatically instead of leaving the guide stuck with
-  // no video until they restart the app; only give up (and tell the guide)
-  // after a second failure on the same device, or immediately on an actual
-  // permission denial where retrying can't help.
-  const handleMediaDeviceFailure = useCallback((failure?: MediaDeviceFailure, kind?: MediaDeviceKind) => {
-    const source = kind === 'audioinput' ? Track.Source.Microphone : Track.Source.Camera;
-    const label = source === Track.Source.Camera ? 'camera' : 'microphone';
-    if (failure === MediaDeviceFailure.PermissionDenied) {
-      setMediaError(`Camera and microphone permission is required to broadcast.`);
-      return;
+    setMediaError(undefined);
+
+    const logConnection = (event: string, details: Record<string, unknown> = {}) => {
+      diagnosticLog(event, { session: sessionKey, state: room.state, ...details });
+    };
+    const onConnected = () => {
+      if (connectionEpochRef.current !== epoch) return;
+      connectedForEpoch = true;
+      logConnection('connection-connected');
+      if (connectionProps.video || connectionProps.audio) void mediaLifecycle.startOnConnected(sessionKey);
+    };
+    const onReconnecting = () => {
+      if (connectionEpochRef.current !== epoch) return;
+      mediaLifecycle.handleConnectionTransition('reconnecting');
+    };
+    const onSignalReconnecting = () => {
+      if (connectionEpochRef.current !== epoch) return;
+      mediaLifecycle.handleConnectionTransition('signal-reconnecting');
+    };
+    const onReconnected = () => {
+      if (connectionEpochRef.current !== epoch) return;
+      mediaLifecycle.handleConnectionTransition('reconnected');
+      logConnection('connection-restored', { mediaRestarted: false });
+    };
+    const onDisconnected = (reason?: unknown) => {
+      if (connectionEpochRef.current !== epoch) return;
+      mediaLifecycle.handleConnectionTransition('disconnected');
+      logConnection('connection-disconnected', { reason: String(reason ?? 'unknown') });
+      if (connectedForEpoch) void mediaLifecycle.endSession('room-disconnected');
+      connectedForEpoch = false;
+    };
+    const onConnectionStateChanged = (state: unknown) => {
+      if (connectionEpochRef.current !== epoch) return;
+      logConnection('connection-state', { nextState: String(state) });
+    };
+    const onMediaDevicesError = (error: Error, kind?: MediaDeviceKind) => {
+      if (connectionEpochRef.current !== epoch) return;
+      const failure = MediaDeviceFailure.getFailure(error);
+      const source: GuideMediaSource = kind === 'audioinput' ? 'microphone' : 'camera';
+      diagnosticLog('media-device-error', {
+        session: sessionKey,
+        source,
+        failure: failure ?? 'unknown',
+        error: safeDiagnosticError(error),
+      });
+      mediaLifecycle.handleMediaFailure(failure === MediaDeviceFailure.PermissionDenied, source);
+    };
+
+    room
+      .on(RoomEvent.Connected, onConnected)
+      .on(RoomEvent.Reconnecting, onReconnecting)
+      .on(RoomEvent.SignalReconnecting, onSignalReconnecting)
+      .on(RoomEvent.Reconnected, onReconnected)
+      .on(RoomEvent.Disconnected, onDisconnected)
+      .on(RoomEvent.ConnectionStateChanged, onConnectionStateChanged)
+      .on(RoomEvent.MediaDevicesError, onMediaDevicesError);
+
+    if (shouldConnect && token) {
+      void enqueueRoomTransition(async () => {
+        if (connectionEpochRef.current !== epoch) return;
+        logConnection('connection-start');
+        try {
+          await room.connect(LIVEKIT_WS_URL, token);
+        } catch (error) {
+          if (connectionEpochRef.current !== epoch) return;
+          diagnosticLog('connection-failed', { session: sessionKey, error: safeDiagnosticError(error) });
+          setMediaError('Could not connect the live broadcast. Try leaving and rejoining the walk.');
+        }
+      });
+    } else {
+      void enqueueRoomTransition(async () => {
+        await mediaLifecycle.endSession('inactive');
+        await room.disconnect();
+      });
     }
-    if (retriedSourcesRef.current.has(source)) {
-      setMediaError(`Could not start the ${label}. Try leaving and rejoining the walk.`);
-      return;
-    }
-    retriedSourcesRef.current.add(source);
-    setTimeout(() => {
-      const localParticipant = roomRef.current?.localParticipant;
-      if (!localParticipant) return;
-      if (source === Track.Source.Camera) void localParticipant.setCameraEnabled(true, { facingMode });
-      else void localParticipant.setMicrophoneEnabled(true);
-    }, 800);
-  }, [facingMode]);
+
+    return () => {
+      connectionEpochRef.current += 1;
+      connectedForEpoch = false;
+      room
+        .off(RoomEvent.Connected, onConnected)
+        .off(RoomEvent.Reconnecting, onReconnecting)
+        .off(RoomEvent.SignalReconnecting, onSignalReconnecting)
+        .off(RoomEvent.Reconnected, onReconnected)
+        .off(RoomEvent.Disconnected, onDisconnected)
+        .off(RoomEvent.ConnectionStateChanged, onConnectionStateChanged)
+        .off(RoomEvent.MediaDevicesError, onMediaDevicesError);
+      void enqueueRoomTransition(async () => {
+        await mediaLifecycle.endSession('session-change-or-unmount');
+        await room.disconnect();
+        diagnosticLog('connection-cleanup', { session: sessionKey });
+      });
+    };
+  }, [
+    connectionProps.audio,
+    connectionProps.connect,
+    connectionProps.token,
+    connectionProps.video,
+    diagnosticLog,
+    enqueueRoomTransition,
+    mediaLifecycle,
+    room,
+    sessionId,
+  ]);
+
+  const flipCamera = useCallback(async () => {
+    const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
+    const restarted = await mediaLifecycle.restartCamera({ facingMode: next });
+    if (restarted) setFacingMode(next);
+  }, [facingMode, mediaLifecycle]);
 
   if (!connectionProps.connect || !connectionProps.token) {
     return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} errorMessage={errorMessage} />;
   }
   return (
     <View style={styles.wrapper}>
-      <LiveKitRoom
-        room={roomRef.current}
-        serverUrl={LIVEKIT_WS_URL}
-        token={connectionProps.token}
-        connect={connectionProps.connect}
-        video={connectionProps.video ? { facingMode } : false}
-        audio={connectionProps.audio}
-        onMediaDeviceFailure={handleMediaDeviceFailure}
-      >
+      <RoomContext.Provider value={room}>
         <LocalCameraPreview facingMode={facingMode} />
-        <FlipCameraButton facingMode={facingMode} onFlip={() => setFacingMode((current) => current === 'environment' ? 'user' : 'environment')} />
-      </LiveKitRoom>
+        <FlipCameraButton onFlip={flipCamera} />
+      </RoomContext.Provider>
       {mediaError ? (
         <View style={styles.mediaErrorBanner}>
           <Text style={styles.mediaErrorText}>{mediaError}</Text>
@@ -180,3 +292,10 @@ const styles = StyleSheet.create({
   },
   mediaErrorText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13, lineHeight: 18 },
 });
+
+function safeDiagnosticError(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown';
+  return `${error.name}: ${error.message}`
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[credential-redacted]')
+    .replace(/(token=)[^&\s]+/gi, '$1[credential-redacted]');
+}

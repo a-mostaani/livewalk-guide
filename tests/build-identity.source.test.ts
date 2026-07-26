@@ -1,12 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  ACTIVE_BUILD_METADATA,
-  PRODUCTION_BUILD_METADATA,
-  QA_BUILD_METADATA,
-  renderQaBuildIdentity,
-} from '../src/buildIdentity';
+import { parseQaBuildMetadata } from '../src/buildIdentityCore';
 
 function colorMap() {
   const source = readFileSync(resolve(process.cwd(), 'src/components/Primitives.tsx'), 'utf8');
@@ -25,29 +20,24 @@ function contrastRatio(foreground: string, background: string) {
 }
 
 describe('Guide source build identity', () => {
-  it('keeps the committed QA identity available without activating it in production', () => {
+  it('reads an automatically populated QA identity from app configuration', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/buildIdentity.ts'), 'utf8');
-
-    expect(source).not.toMatch(/process\.env|expo-constants|Constants\.expoConfig/);
-    expect(QA_BUILD_METADATA).toEqual({
-      commit: 'c204302',
+    const metadata = {
+      commit: '8fc7a4d',
       branch: 'peter-dev',
-      purpose: 'launch + accepted/ready cancellation QA',
-      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-    });
-    expect(renderQaBuildIdentity(QA_BUILD_METADATA)).toEqual({
-      testID: 'qa-build-badge',
-      labelTestID: 'qa-build-badge-label',
-      accessibilityLabel: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-      label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-    });
+      purpose: 'LiveKit reconnect hardening',
+      label: 'QA BUILD · 8fc7a4d · peter-dev · LiveKit reconnect hardening',
+    };
+
+    expect(source).toMatch(/Constants\.expoConfig\?\.extra\?\.qaBuild/);
+    expect(parseQaBuildMetadata(metadata)).toEqual(metadata);
+    expect(parseQaBuildMetadata({ ...metadata, commit: undefined })).toBeNull();
   });
 
-  it('renders no identity for the active production/main metadata path', () => {
-    expect(PRODUCTION_BUILD_METADATA).toBeNull();
-    expect(ACTIVE_BUILD_METADATA).toBe(PRODUCTION_BUILD_METADATA);
-    expect(renderQaBuildIdentity(ACTIVE_BUILD_METADATA)).toBeNull();
-    expect(renderQaBuildIdentity(PRODUCTION_BUILD_METADATA)).toBeNull();
+  it('keeps the active identity nullable for production/main builds', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/buildIdentity.ts'), 'utf8');
+    expect(source).toMatch(/PRODUCTION_BUILD_METADATA: QaBuildMetadata \| null = null/);
+    expect(source).toMatch(/ACTIVE_BUILD_METADATA = QA_BUILD_METADATA/);
   });
 
   it('places the QA identity in the shared header for auth and authenticated shells', () => {
@@ -66,5 +56,14 @@ describe('Guide source build identity', () => {
     const colors = colorMap() as Record<string, string>;
 
     expect(contrastRatio(colors.qaBuildBadgeText, colors.qaBuildBadgeBackground)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps LiveKit media ownership outside the reconnect-driven room wrapper', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/GuideBroadcastVideo.tsx'), 'utf8');
+
+    expect(source).not.toMatch(/<LiveKitRoom/);
+    expect(source).toMatch(/<RoomContext\.Provider/);
+    expect(source).toMatch(/mediaRestarted: false/);
+    expect(source).toMatch(/new GuideMediaLifecycle/);
   });
 });
