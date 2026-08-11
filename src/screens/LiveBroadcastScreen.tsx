@@ -117,6 +117,7 @@ export function LiveBroadcastScreen({
         guideName={guideName.trim() || 'Guide'}
         travelerName={travelerName}
         errorMessage={broadcast.state.status === 'error' ? broadcast.state.message : undefined}
+        paused={paused}
       />
       {latestTravelerAlert ? (
         <Card style={styles.alertCard}>
