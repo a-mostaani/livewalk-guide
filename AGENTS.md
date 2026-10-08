@@ -21,19 +21,28 @@
 ## Git and scratch workflow
 
 - Never commit directly to main.
-- At the start of every coding turn, clone or pull the latest peter-dev into scratch, merge main into peter-dev before editing, and recreate regenerable dependencies there. Assume scratch is wiped between turns.
+- livekit-v1 is the single development branch in all three repositories. All ticket work, test builds, and human testing happen there.
+- The old peter-dev branch is parked: it stays on GitHub untouched, but do not build from it, merge it, rebase onto it, push to it, or delete it unless the user explicitly asks. Work that exists only on peter-dev is not part of the product until the user asks for it to be brought across.
+- At the start of every coding turn, clone or pull the latest livekit-v1 into scratch, merge main into livekit-v1 before editing, and recreate regenerable dependencies there. Assume scratch is wiped between turns.
 - If merging main creates a conflict that is not confidently resolvable, especially a schema or generated-file conflict, stop and ask rather than guessing.
 - Commit meaningful changes early with a greppable ticket/action message, for example, LW-15b: restore traveler deps. For operational project-rule changes use LW-OPS: action.
-- Push peter-dev before reporting completion. If no source changed, explicitly report that no commit was needed.
+- Push livekit-v1 before reporting completion. If no source changed, explicitly report that no commit was needed.
 - Keep node_modules/, .expo/, build/, .venv/, dist/, and all other regenerable dependency, build, and temporary trees out of the persistent workspace. Record the reason for any persistent exception for a large downloaded SDK component.
 
 ## Secrets and completion bar
 
 - Never expose credential or token values in status updates, commit messages, test-request messages, or WhatsApp reports; use secret or environment-variable names only. Keep credentials in gitignored .env files or secure storage, and verify .env is gitignored and unstaged before every commit.
-- Code-complete (Peter's own bar, unblocks moving to the next ticket): typecheck (tsc --noEmit or equivalent) passes, relevant tests run, a real route or flow is exercised for user-flow changes, and the change is successfully pushed to peter-dev. Do not call a ticket done in status reporting until it is at least code-complete and pushed.
+- Code-complete (Peter's own bar, unblocks moving to the next ticket): typecheck (tsc --noEmit or equivalent) passes, relevant tests run, a real route or flow is exercised for user-flow changes, and the change is successfully pushed to livekit-v1. Do not call a ticket done in status reporting until it is at least code-complete and pushed.
 - Closed (the real finish line for a ticket): code-complete, plus the user has tested per a test-request message (see below), confirmed it passes, and the change has been merged into main via a verified release promotion. Only closed tickets are truly finished — code-complete is a checkpoint, not the end state.
 - For Android/EAS compatibility issues, prefer app.config.js over app.config.ts when the known eas-cli/config-loader issue recurs.
 - No silent config fallbacks: if a build tool falls back to an auto-generated/default config because a file was not actually saved to disk, treat it as a build failure, not a successful build — verify config file contents on disk directly before trusting a build.
+
+## Regression tests and automated checks
+
+- Every bug ticket closes with a test that failed before the fix and passes after, named with the ticket ID (for example a test titled "TICKET-7: time field keeps its format after the default is cleared"). Write the failing test first, confirm it fails for the reported reason, then fix. A bug ticket without such a test is not code-complete.
+- If a bug genuinely cannot be reproduced in an automated test (real camera, GPS, first-run OS permission prompts, returning from standby), say so explicitly in the ticket, automate the closest logic-level check available, and add the scenario as a numbered step in the manual device checklist so it is re-run before every tester build.
+- The full booking cycle is defined once, in livewalk-marketplace-api/docs/booking-cycle.md, as numbered steps (BC-xx). Any change to a request, session, message, or auth shape or status must update that document and the cross-app suite in livewalk-marketplace-api/cross-app in the same change.
+- GitHub Actions runs typecheck, the repo's tests, and the cross-app booking-cycle suite on every push to livekit-v1 and on every pull request to main. Run the same commands locally before pushing. A red check blocks code-complete; never skip, delete, or weaken a test to get a green run without the user's agreement.
 
 ## Test-request messages
 
@@ -50,7 +59,7 @@ Before writing the message, Peter must actively determine what else could plausi
 ### Message format, per ticket included
 
 1. Ticket ID(s) and one-line summary of what changed.
-2. Exact commit hash the test build was generated from, and the branch (always peter-dev — see Build and deploy targets below).
+2. Exact commit hash the test build was generated from, and the branch (always livekit-v1 — see Build and deploy targets below).
 3. Precise test steps — a concrete, ordered sequence to exercise. Not test the app.
 4. Expected result — what correct behavior looks like at each key step.
 5. Potential side effects — from the analysis above.
@@ -64,8 +73,8 @@ Before writing the message, Peter must actively determine what else could plausi
 
 ## Build and deploy targets
 
-- Test/QA builds: always built from peter-dev, always freshly built at the point of a test-request message, at the exact commit stated in the message. Never reuse an older build for a new or aggregated test request.
-- Public download builds (LivelyWalk web page) and any public-facing backend deploy: only ever built/deployed from main, and only after the relevant tickets are closed via verified release promotion. Never point a public build at peter-dev, even temporarily, even for a hotfix.
+- Test/QA builds: always built from the latest livekit-v1 commit, always freshly built at the point of a test-request message, at the exact commit stated in the message. Never reuse an older build for a new or aggregated test request.
+- Public download builds (LivelyWalk web page) and any public-facing backend deploy: only ever built/deployed from main, and only after the relevant tickets are closed via verified release promotion. Never point a public build at livekit-v1, even temporarily, even for a hotfix.
 - No stale public builds during active testing: if a ticket in test changes user-facing behavior, the public build stays on the last-confirmed main state until the new one is promoted.
 - State explicitly, per app, which branch each build/deploy target currently points to — this must never be left implicit.
 
@@ -73,9 +82,11 @@ Before writing the message, Peter must actively determine what else could plausi
 
 - During active LiveWalk engineering, report progress every two hours until the work is paused or complete.
 - Scheduled updates must reflect actual remote/GitHub state and use exactly: Ticket ID | status (code-complete/closed/blocked/in-progress) | blocker (or none) | repo + branch + commit reference.
-- Do not call work code-complete until it is pushed to peter-dev; do not call it closed until it is merged to main.
+- Do not call work code-complete until it is pushed to livekit-v1; do not call it closed until it is merged to main.
 
 ## Verified release promotion
 
-- Development edits happen only on peter-dev. The sole exception is a verified release promotion: after the user confirms a test-request (or aggregated test-request) has passed, merge peter-dev cleanly into main and push main for production deployment or Android packaging; never edit main directly.
+- Development edits happen only on livekit-v1. The sole exception is a verified release promotion: after the user confirms a test-request (or aggregated test-request) has passed, merge livekit-v1 cleanly into main and push main for production deployment or Android packaging; never edit main directly.
+- No merge into main without passed human tests on the latest livekit-v1. The human test must have been run on a build of the exact livekit-v1 commit being merged. If livekit-v1 has moved since the tested build, the newer commits need their own test-request and confirmation before promotion; do not merge a tip the user has not tested.
+- The automated checks must also be green on that same commit before promotion.
 - A ticket's status only becomes closed once this promotion has happened for the commit the user tested.
