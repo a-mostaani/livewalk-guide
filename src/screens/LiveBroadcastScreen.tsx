@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
 import { GuideBroadcastVideo } from '../components/GuideBroadcastVideo';
+import { ChatComposer } from '../components/ChatComposer';
 import { Button, Card, colors } from '../components/Primitives';
 import { CancelledWalkState } from '../components/CancelledWalkState';
 import { getMapboxTokenSafely } from '../config';
@@ -71,8 +72,6 @@ export function LiveBroadcastScreen({
       Alert.alert('Message not sent', 'The shared session is not ready yet.');
     }
   };
-
-  const sendReply = () => sendSessionEvent('Guide message: I’ll slow down at the next corner.', 'Message sent to the traveler.');
 
   const startTalking = () => {
     if (!canRunGuideWalkAction(request) || !sessionReady) return;
@@ -146,7 +145,6 @@ export function LiveBroadcastScreen({
             <Ionicons name={talking ? 'mic' : 'mic-outline'} size={18} color={talking ? colors.white : colors.ink} />
             <Text style={[styles.holdButtonText, talking && styles.holdButtonTextActive]}>{talking ? 'Talking…' : 'Hold to talk'}</Text>
           </TouchableOpacity>
-          <Button label="Message" icon="chatbubble-ellipses" variant="secondary" onPress={sendReply} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
           <Button label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} variant="secondary" onPress={togglePaused} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
           <Button label={walkEnded ? 'Walk ended' : 'End walk'} icon="stop-circle" variant="danger" onPress={() => void endWalk()} disabled={!sessionReady || walkEnded} style={styles.controlButton} />
         </View>
@@ -173,6 +171,7 @@ export function LiveBroadcastScreen({
             </View>
           ))}
         </View>
+        <ChatComposer sessionReady={sessionReady && !walkEnded} placeholder="Message your traveler" onSend={onSendMessage} />
       </Card>
       <Card style={styles.panel}>
         <View style={styles.panelHeader}>
