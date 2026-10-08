@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { ACTIVE_BUILD_METADATA, renderQaBuildIdentity } from '../buildIdentity';
+import Constants from 'expo-constants';
+import { buildIdentityLabel, renderQaBuildIdentity } from '../buildIdentity';
 import { colors } from './Primitives';
 
 export function QaBuildBadge() {
-  const identity = renderQaBuildIdentity(ACTIVE_BUILD_METADATA);
+  const identity = renderQaBuildIdentity(buildIdentityLabel(Constants.expoConfig?.extra?.buildIdentity));
   if (!identity) return null;
 
   return (

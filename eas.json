@@ -10,6 +10,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "LIVELYWALK_BUILD_BRANCH": "livekit-v1"
       }
     },
     "preview": {
@@ -17,12 +20,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "LIVELYWALK_BUILD_BRANCH": "livekit-v1"
       }
     },
     "production": {
       "environment": "production",
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "LIVELYWALK_BUILD_BRANCH": "main"
       }
     }
   }

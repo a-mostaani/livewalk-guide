@@ -1,9 +1,14 @@
-export type QaBuildMetadata = {
-  commit: string;
-  branch: string;
-  purpose: string;
-  label: string;
-};
+// TICKET-16: the build label shown at the top of every test build. The values
+// come from the build itself (see app.config.js); nothing here is typed by
+// hand, so the label cannot go stale. This file stays free of environment and
+// Expo imports so the rules can be tested directly.
+
+export type BuildIdentityInput = {
+  commit?: string;
+  branch?: string;
+  profile?: string;
+  builtAt?: string;
+} | null | undefined;
 
 export type QaBuildIdentityDisplay = {
   testID: 'qa-build-badge';
@@ -12,24 +17,32 @@ export type QaBuildIdentityDisplay = {
   label: string;
 };
 
-export const QA_BUILD_METADATA: QaBuildMetadata = {
-  commit: 'c204302',
-  branch: 'peter-dev',
-  purpose: 'launch + accepted/ready cancellation QA',
-  label: 'QA BUILD · c204302 · peter-dev · launch + accepted/ready cancellation QA',
-};
+function shortCommit(commit: string | undefined) {
+  const value = (commit ?? '').trim();
+  return /^[0-9a-f]{7,40}$/i.test(value) ? value.slice(0, 7) : 'UNKNOWN COMMIT';
+}
 
-export const PRODUCTION_BUILD_METADATA: QaBuildMetadata | null = null;
-export const ACTIVE_BUILD_METADATA = PRODUCTION_BUILD_METADATA as QaBuildMetadata | null;
-export const QA_BUILD_LABEL = ACTIVE_BUILD_METADATA?.label ?? null;
+function buildTime(builtAt: string | undefined) {
+  const time = Date.parse(builtAt ?? '');
+  if (Number.isNaN(time)) return 'UNKNOWN DATE';
+  return `${new Date(time).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
 
-export function renderQaBuildIdentity(metadata: QaBuildMetadata | null): QaBuildIdentityDisplay | null {
-  if (!metadata) return null;
+// Production builds show nothing. Every other build shows a label, and a
+// missing value is shown as UNKNOWN rather than hidden.
+export function buildIdentityLabel(input: BuildIdentityInput): string | null {
+  if (input?.profile === 'production') return null;
+  const branch = (input?.branch ?? '').trim() || 'UNKNOWN BRANCH';
+  return `TEST BUILD · ${shortCommit(input?.commit)} · ${branch} · ${buildTime(input?.builtAt)}`;
+}
+
+export function renderQaBuildIdentity(label: string | null): QaBuildIdentityDisplay | null {
+  if (!label) return null;
 
   return {
     testID: 'qa-build-badge',
     labelTestID: 'qa-build-badge-label',
-    accessibilityLabel: metadata.label,
-    label: metadata.label,
+    accessibilityLabel: label,
+    label,
   };
 }

@@ -24,7 +24,33 @@ function resolveMobileMapboxToken(env) {
   return '';
 }
 
-function createAppConfig(config, env = process.env) {
+// TICKET-16: where this build came from. On the build service the commit is
+// supplied by the service and the branch by the build profile (eas.json);
+// local git is only consulted for runs on a developer machine. Nothing is
+// guessed: a missing value stays empty and the app shows it as UNKNOWN.
+function readLocalGit(args) {
+  try {
+    return require('node:child_process')
+      .execFileSync('git', args, { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+function resolveBuildIdentity(env, git) {
+  const onBuildService = env.EAS_BUILD === 'true';
+  const localGit = (args) => (onBuildService ? '' : git(args));
+  return {
+    commit: (env.EAS_BUILD_GIT_COMMIT_HASH || localGit(['rev-parse', 'HEAD']) || '').trim(),
+    branch: (env.LIVELYWALK_BUILD_BRANCH || localGit(['rev-parse', '--abbrev-ref', 'HEAD']) || '').trim(),
+    profile: (env.EAS_BUILD_PROFILE || 'local').trim(),
+    builtAt: new Date().toISOString(),
+  };
+}
+
+function createAppConfig(config, env = process.env, git = readLocalGit) {
   const apiBaseUrl = cleanUrl(
     env.LIVEWALK_API_BASE_URL ?? env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL,
   );
@@ -74,6 +100,7 @@ function createAppConfig(config, env = process.env) {
     },
     extra: {
       ...config.extra,
+      buildIdentity: resolveBuildIdentity(env, git),
       apiBaseUrl,
       livekitWsUrl,
       mapboxTokenWeb,

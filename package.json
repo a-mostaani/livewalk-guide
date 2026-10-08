@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "build:test": "node scripts/build-test.mjs",
     "export:web": "expo export --platform web",
     "test": "vitest run",
     "validate:session-request": "vitest run tests/session-request.test.ts"
