@@ -164,7 +164,7 @@ export function LiveBroadcastScreen({
           <Ionicons name="chatbubbles" size={25} color={colors.gold} />
         </View>
         <View style={styles.messageList}>
-          {(messages.length ? messages : [{ id: 'empty', senderName: 'LiveWalk', text: 'No shared messages yet.', senderRole: 'system', sessionId: '', createdAt: '' }]).map((message) => (
+          {(messages.length ? messages : [{ id: 'empty', senderName: 'LivelyWalk', text: 'No shared messages yet.', senderRole: 'system', sessionId: '', createdAt: '' }]).map((message) => (
             <View key={message.id} style={[styles.messageBubble, message.senderRole === 'guide' && styles.messageBubbleMine]}>
               <Text style={styles.messageFrom}>{message.senderName}</Text>
               <Text style={styles.messageText}>{message.text}</Text>

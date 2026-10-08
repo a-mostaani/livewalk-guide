@@ -50,7 +50,7 @@ export function BrandMark() {
         <Ionicons name="walk" size={21} color={colors.white} />
       </View>
       <View>
-        <Text style={styles.brand}>LiveWalk</Text>
+        <Text style={styles.brand}>LivelyWalk</Text>
         <Text style={styles.brandSub}>Guide</Text>
       </View>
     </View>

@@ -26,7 +26,7 @@ function LocalCameraPreview({ facingMode, paused }: { facingMode: FacingMode; pa
     const settings = localVideoTrack.mediaStreamTrack?.getSettings();
     const encodings = localVideoTrack.sender?.getParameters().encodings;
     console.log(
-      `[LiveWalk] guide capture: ${settings?.width}x${settings?.height}@${settings?.frameRate}fps`,
+      `[LivelyWalk] guide capture: ${settings?.width}x${settings?.height}@${settings?.frameRate}fps`,
       '| simulcast encodings:',
       encodings?.map((e) => ({ rid: e.rid, maxBitrate: e.maxBitrate, scaleResolutionDownBy: e.scaleResolutionDownBy, maxFramerate: e.maxFramerate })),
     );

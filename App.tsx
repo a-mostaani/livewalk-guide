@@ -160,8 +160,7 @@ function GuideApp() {
               <Ionicons name="walk" size={17} color={colors.white} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.headerTitle}>LiveWalk Guide MVP</Text>
-              <Text style={styles.headerSub}>Shared backend booking cycle</Text>
+              <Text style={styles.headerTitle}>LivelyWalk Guide</Text>
             </View>
             <View style={[styles.statusPill, apiOnline ? styles.statusPillOnline : styles.statusPillOffline]}>
               <View style={[styles.statusDot, apiOnline && styles.statusDotOnline]} />
@@ -239,7 +238,6 @@ const styles = StyleSheet.create({
   signOut: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
   headerCopy: { flex: 1, minWidth: 0 },
   headerTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
-  headerSub: { color: colors.muted, fontWeight: '700', fontSize: 12, marginTop: 1 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },
   statusPillOnline: { backgroundColor: '#EAF7F2', borderColor: '#BDE8DC' },
   statusPillOffline: { backgroundColor: '#FFF8EA', borderColor: '#F2DCA8' },

@@ -366,7 +366,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     // clean resubscribe when the app comes back, instead of trusting the OS
     // to silently resume the old subscription.
     if (!debouncedAppActive) {
-      setLocationNote('Paused - bring LiveWalk to the foreground to keep sharing your camera and GPS.');
+      setLocationNote('Paused - bring LivelyWalk to the foreground to keep sharing your camera and GPS.');
       return;
     }
 

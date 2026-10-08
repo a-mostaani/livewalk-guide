@@ -17,7 +17,7 @@ export function EarningsScreen({ onSchedule }: { onSchedule: () => void }) {
         <Text style={styles.receiptTitle}>45 minute walk completed</Text>
         <View style={styles.stats}>
           <Stat label="Gross" value={`$${gross}`} tone="dark" />
-          <Stat label="LiveWalk" value={`-$${commission}`} tone="dark" />
+          <Stat label="LivelyWalk" value={`-$${commission}`} tone="dark" />
           <Stat label="Payout" value={`$${payout}`} tone="dark" />
         </View>
       </Card>

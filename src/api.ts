@@ -34,8 +34,8 @@ function friendlyApiError(status: number, raw: string, code?: string) {
   if (lower.includes('only the guide can start')) return 'Only the Guide can start the live session after Ready is complete.';
   if (lower.includes('not started')) return 'The Guide has not started the live session yet.';
   if (status === 403) return message || 'This account is not allowed to do that step.';
-  if (status >= 500) return 'LiveWalk is having a server problem. Retry in a moment.';
-  return message || `LiveWalk request failed (${status}).`;
+  if (status >= 500) return 'LivelyWalk is having a server problem. Retry in a moment.';
+  return message || `LivelyWalk request failed (${status}).`;
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -50,7 +50,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new Error('Cannot reach LiveWalk right now. Check the phone connection and retry.');
+    throw new Error('Cannot reach LivelyWalk right now. Check the phone connection and retry.');
   }
 
   let data: any = {};

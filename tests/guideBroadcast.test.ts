@@ -89,11 +89,11 @@ describe('GuideBroadcastController', () => {
   });
 
   it('surfaces a token-fetch failure as an error state with no connection props', async () => {
-    const fetchToken = vi.fn().mockRejectedValue(new Error('Cannot reach LiveWalk right now.'));
+    const fetchToken = vi.fn().mockRejectedValue(new Error('Cannot reach LivelyWalk right now.'));
     const controller = new GuideBroadcastController({ fetchToken });
 
     const errored = await controller.start('session-1');
-    expect(errored).toEqual({ status: 'error', sessionId: 'session-1', message: 'Cannot reach LiveWalk right now.' });
+    expect(errored).toEqual({ status: 'error', sessionId: 'session-1', message: 'Cannot reach LivelyWalk right now.' });
     expect(getConnectionProps(errored)).toEqual({ connect: false, token: undefined, video: false, audio: false });
   });
 

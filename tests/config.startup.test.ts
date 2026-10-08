@@ -46,6 +46,6 @@ describe('Guide startup runtime config', () => {
     });
 
     expect(config.API_BASE).toBe('https://guide.example');
-    expect(() => config.getMapboxTokenForCurrentPlatform()).toThrow('LiveWalk Mapbox mobile token is missing from Expo config.');
+    expect(() => config.getMapboxTokenForCurrentPlatform()).toThrow('LivelyWalk Mapbox mobile token is missing from Expo config.');
   });
 });

@@ -14,13 +14,13 @@ function getLiveWalkExtra(): LiveWalkExtra {
 
 function cleanApiBaseUrl(value: string | undefined): string {
   const cleaned = value?.trim().replace(/\/+$/, '');
-  if (!cleaned) throw new Error('LiveWalk API base URL is missing from Expo config.');
+  if (!cleaned) throw new Error('LivelyWalk API base URL is missing from Expo config.');
   return cleaned;
 }
 
 function cleanMapboxToken(value: string | undefined, target: 'web' | 'mobile'): string {
   const cleaned = value?.trim();
-  if (!cleaned) throw new Error(`LiveWalk Mapbox ${target} token is missing from Expo config.`);
+  if (!cleaned) throw new Error(`LivelyWalk Mapbox ${target} token is missing from Expo config.`);
   return cleaned;
 }
 
