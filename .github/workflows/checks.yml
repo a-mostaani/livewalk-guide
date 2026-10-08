@@ -1,0 +1,59 @@
+name: checks
+
+# Runs on every push to the development branch and on every pull request, so a
+# fixed bug cannot come back unnoticed. Run the same commands locally before
+# pushing (see AGENTS.md, "Regression tests and automated checks").
+on:
+  push:
+    branches: [livekit-v1, main]
+  pull_request:
+    branches: [livekit-v1, main]
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  booking-cycle:
+    name: Full booking cycle across all three apps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check out the other two repos on the matching branch
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          clone() {
+            git clone --depth 1 --branch "$BRANCH" "https://github.com/${{ github.repository_owner }}/$1.git" "$RUNNER_TEMP/$1" \
+              || git clone --depth 1 --branch livekit-v1 "https://github.com/${{ github.repository_owner }}/$1.git" "$RUNNER_TEMP/$1"
+            echo "$1 at $(git -C "$RUNNER_TEMP/$1" rev-parse --abbrev-ref HEAD) $(git -C "$RUNNER_TEMP/$1" rev-parse --short HEAD)"
+          }
+          clone livewalk-marketplace-api
+          clone livewalk-traveler
+      - name: Run the cross-app booking-cycle suite
+        run: |
+          export LIVELYWALK_GUIDE_DIR="$GITHUB_WORKSPACE"
+          export LIVELYWALK_TRAVELER_DIR="$RUNNER_TEMP/livewalk-traveler"
+          cd "$RUNNER_TEMP/livewalk-marketplace-api"/cross-app
+          npm ci
+          npm test
