@@ -32,3 +32,12 @@ export async function submitDraft(draft: string, gate: ComposerGate, send: (text
     return { sent: false, draft, error: error instanceof Error && error.message ? error.message : SEND_FAILED_MESSAGE };
   }
 }
+
+// TICKET-18: which side of the thread a message belongs on.
+export type MessageSide = 'mine' | 'theirs' | 'system';
+
+export function messageSide(senderRole: string, myRole: 'guide' | 'traveler'): MessageSide {
+  if (senderRole === myRole) return 'mine';
+  if (senderRole === 'guide' || senderRole === 'traveler') return 'theirs';
+  return 'system';
+}

@@ -168,7 +168,8 @@ function GuideApp() {
             </View>
             {user ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={10} onPress={confirmSignOut} style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}>
-                <Ionicons name="log-out-outline" size={20} color={colors.ink} />
+                <Ionicons name="log-out-outline" size={16} color={colors.ink} />
+                <Text style={styles.signOutText}>Sign out</Text>
               </Pressable>
             ) : null}
           </View>
@@ -235,7 +236,8 @@ const styles = StyleSheet.create({
   appHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6 },
   logoMini: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.68 },
-  signOut: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
+  signOut: { minHeight: 40, paddingHorizontal: 12, borderRadius: 14, flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
+  signOutText: { color: colors.ink, fontWeight: '800', fontSize: 12 },
   headerCopy: { flex: 1, minWidth: 0 },
   headerTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },

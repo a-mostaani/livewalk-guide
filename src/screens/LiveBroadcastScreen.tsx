@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GuideRouteMap, ProgressRail, SafetyNote } from '../components/GuideVisuals';
 import { GuideBroadcastVideo } from '../components/GuideBroadcastVideo';
 import { ChatComposer } from '../components/ChatComposer';
+import { messageSide } from '../chat/composer';
 import { Button, Card, colors } from '../components/Primitives';
 import { CancelledWalkState } from '../components/CancelledWalkState';
 import { getMapboxTokenSafely } from '../config';
@@ -166,7 +167,7 @@ export function LiveBroadcastScreen({
         </View>
         <View style={styles.messageList}>
           {(messages.length ? messages : [{ id: 'empty', senderName: 'LivelyWalk', text: 'No shared messages yet.', senderRole: 'system', sessionId: '', createdAt: '' }]).map((message) => (
-            <View key={message.id} style={[styles.messageBubble, message.senderRole === 'guide' && styles.messageBubbleMine]}>
+            <View key={message.id} style={[styles.messageBubble, messageSide(message.senderRole, 'guide') === 'mine' && styles.messageBubbleMine, messageSide(message.senderRole, 'guide') === 'system' && styles.messageBubbleSystem]}>
               <Text style={styles.messageFrom}>{message.senderName}</Text>
               <Text style={styles.messageText}>{message.text}</Text>
             </View>
@@ -227,6 +228,7 @@ const styles = StyleSheet.create({
   messageList: { gap: 8 },
   messageBubble: { backgroundColor: colors.cream, borderRadius: 16, padding: 12, alignSelf: 'flex-start', maxWidth: '92%' },
   messageBubbleMine: { alignSelf: 'flex-end', backgroundColor: colors.blueSoft },
+  messageBubbleSystem: { alignSelf: 'center', backgroundColor: 'transparent', paddingVertical: 4 },
   messageFrom: { color: colors.gold, fontWeight: '900', marginBottom: 3, fontSize: 12 },
   messageText: { color: colors.ink, fontWeight: '700', lineHeight: 20 },
   captionList: { gap: 8 },
