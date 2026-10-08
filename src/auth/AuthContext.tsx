@@ -1,5 +1,6 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { clearAuthToken, getCurrentUser, loginAccount, registerAccount, setAuthFailureHandler, setAuthToken } from '../api';
+import { clearAuthToken, getCurrentUser, loginAccount, logoutAccount, registerAccount, setAuthFailureHandler, setAuthToken } from '../api';
+import { signOutEverywhere } from './signOut';
 import type { AuthPayload, AuthUser } from '../types';
 import { clearStoredAuthToken, readStoredAuthToken, saveStoredAuthToken } from './tokenStorage';
 
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback((payload: AuthPayload) => authenticate('register', payload), [authenticate]);
 
   const logout = useCallback(async () => {
-    await resetAuth();
+    await signOutEverywhere({ logoutRemote: logoutAccount, clearLocal: resetAuth });
     setError('');
   }, [resetAuth]);
 

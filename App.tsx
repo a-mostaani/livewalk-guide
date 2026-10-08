@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE } from './src/api';
 import { AuthProvider, useAuth } from './src/auth/AuthContext';
+import { signOutPrompt } from './src/auth/signOut';
 import { Button, colors } from './src/components/Primitives';
 import { QaBuildBadge } from './src/components/QaBuildBadge';
 import { CancelledWalkState } from './src/components/CancelledWalkState';
@@ -37,7 +38,7 @@ const screenLabels: Record<Screen, string> = {
 };
 
 function GuideApp() {
-  const { user, token, busy: authBusy } = useAuth();
+  const { user, token, busy: authBusy, logout } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
   const [online, setOnline] = useState(true);
   const [checklistReady, setChecklistReady] = useState(false);
@@ -83,6 +84,14 @@ function GuideApp() {
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
     }
   }, [screen, travelerCancelled]);
+
+  const confirmSignOut = () => {
+    const prompt = signOutPrompt(activeRequest?.status === 'live');
+    Alert.alert(prompt.title, prompt.message, [
+      { text: 'Stay signed in', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => { void logout(); } },
+    ]);
+  };
 
   const goPrevious = () => {
     if (!isFirstScreen) navigateTo(screenOrder[currentIndex - 1]);
@@ -158,6 +167,11 @@ function GuideApp() {
               <View style={[styles.statusDot, apiOnline && styles.statusDotOnline]} />
               <Text style={styles.statusText}>{apiOnline ? 'Live' : 'Sync'}</Text>
             </View>
+            {user ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={10} onPress={confirmSignOut} style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}>
+                <Ionicons name="log-out-outline" size={20} color={colors.ink} />
+              </Pressable>
+            ) : null}
           </View>
           <View style={styles.headerMeta}>
             <Text style={styles.backendLine} numberOfLines={1}>{user ? `${user.name} • ${apiNote}` : apiNote} • {pendingRequests.length} pending • {API_BASE.replace('https://', '')}</Text>
@@ -222,6 +236,7 @@ const styles = StyleSheet.create({
   appHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6 },
   logoMini: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.68 },
+  signOut: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
   headerCopy: { flex: 1, minWidth: 0 },
   headerTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
   headerSub: { color: colors.muted, fontWeight: '700', fontSize: 12, marginTop: 1 },

@@ -78,6 +78,11 @@ export async function loginAccount(payload: AuthPayload) {
   });
 }
 
+// TICKET-7: invalidates the current token on the server.
+export async function logoutAccount() {
+  return api<{ ok: true; loggedOut: true }>('/api/auth/logout', { method: 'POST' });
+}
+
 export async function getCurrentUser() {
   return api<{ ok: true; user: AuthUser }>('/api/auth/me');
 }
