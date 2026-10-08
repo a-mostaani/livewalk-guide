@@ -1,4 +1,5 @@
 import { AppState } from 'react-native';
+import { runPermissionRequest } from '../session/permissionQueue';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { acceptRequest, declineRequest, endSession, getRequest, getSessionStatus, health, isRequestCancelledError, listPendingRequests, sendSessionMessage, startSession, updateSessionLocation } from '../api';
@@ -385,7 +386,8 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
         let status = (await Location.getForegroundPermissionsAsync()).status;
         if (status !== 'granted') {
           setLocationNote('Requesting GPS permission…');
-          status = (await Location.requestForegroundPermissionsAsync()).status;
+          // TICKET-6: queued so it can never overlap the camera prompt.
+          status = (await runPermissionRequest(() => Location.requestForegroundPermissionsAsync())).status;
         }
         if (status !== 'granted') {
           if (!cancelled) setLocationNote('GPS permission is needed to share live route progress.');

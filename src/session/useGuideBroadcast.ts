@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { fetchLiveKitToken } from '../api';
-import { GuideBroadcastController, getConnectionProps, type GuideBroadcastState } from './guideBroadcast';
+import { GuideBroadcastController, broadcastWaitingMessage, getConnectionProps, type GuideBroadcastState } from './guideBroadcast';
+import { runPermissionRequest } from './permissionQueue';
 
 // react-native-webrtc's getUserMedia does not itself trigger the Android
 // system permission dialog - it silently no-ops if CAMERA/RECORD_AUDIO
@@ -11,10 +12,11 @@ import { GuideBroadcastController, getConnectionProps, type GuideBroadcastState 
 // getUserMedia call, so this is a no-op there.
 async function ensureCameraAndMicrophonePermission(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
-  const results = await PermissionsAndroid.requestMultiple([
+  // TICKET-6: queued so it can never overlap the location prompt.
+  const results = await runPermissionRequest(() => PermissionsAndroid.requestMultiple([
     PermissionsAndroid.PERMISSIONS.CAMERA,
     PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-  ]);
+  ]));
   return (
     results[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED &&
     results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
@@ -27,16 +29,20 @@ export function useGuideBroadcast(sessionId: string | undefined, enabled: boolea
     fetchToken: (id) => fetchLiveKitToken(id),
   }));
   const [state, setState] = useState<GuideBroadcastState>(() => controller.getState());
+  const [awaitingPermission, setAwaitingPermission] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     if (enabled && sessionId) {
-      void ensureCameraAndMicrophonePermission().then((granted) => {
+      setAwaitingPermission(true);
+      void ensureCameraAndMicrophonePermission().catch(() => false).then((granted) => {
         if (cancelled) return;
+        setAwaitingPermission(false);
         if (!granted) {
           setState({ status: 'error', sessionId, message: 'Camera and microphone permission is required to broadcast.' });
           return;
         }
+        setState({ status: 'connecting', sessionId });
         void controller.start(sessionId).then((next) => {
           if (!cancelled) setState(next);
         });
@@ -46,9 +52,10 @@ export function useGuideBroadcast(sessionId: string | undefined, enabled: boolea
     }
     return () => {
       cancelled = true;
+      setAwaitingPermission(false);
       setState(controller.stop());
     };
   }, [controller, enabled, sessionId]);
 
-  return { state, connectionProps: getConnectionProps(state), stop: () => setState(controller.stop()) };
+  return { state, connectionProps: getConnectionProps(state), waitingMessage: broadcastWaitingMessage(state, awaitingPermission), stop: () => setState(controller.stop()) };
 }

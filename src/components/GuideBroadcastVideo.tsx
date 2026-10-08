@@ -103,12 +103,14 @@ export function GuideBroadcastVideo({
   guideName,
   travelerName,
   errorMessage,
+  waitingMessage,
   paused = false,
 }: {
   connectionProps: GuideBroadcastConnectionProps;
   guideName: string;
   travelerName: string;
   errorMessage?: string;
+  waitingMessage?: string;
   paused?: boolean;
 }) {
   // Environment (back) camera by default - a walking-tour guide broadcasts
@@ -155,7 +157,7 @@ export function GuideBroadcastVideo({
   }, [facingMode]);
 
   if (!connectionProps.connect || !connectionProps.token) {
-    return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} errorMessage={errorMessage} />;
+    return <BroadcasterPlaceholder guideName={guideName} travelerName={travelerName} errorMessage={errorMessage} waitingMessage={waitingMessage} />;
   }
   return (
     <View style={styles.wrapper}>

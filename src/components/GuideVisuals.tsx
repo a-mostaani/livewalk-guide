@@ -114,7 +114,7 @@ export function GuideRouteMap({
   );
 }
 
-export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Traveler', errorMessage }: { guideName?: string; travelerName?: string; errorMessage?: string }) {
+export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Traveler', errorMessage, waitingMessage = 'Your camera starts when the walk goes live.' }: { guideName?: string; travelerName?: string; errorMessage?: string; waitingMessage?: string }) {
   if (errorMessage) {
     return (
       <View style={styles.video}>
@@ -129,23 +129,14 @@ export function BroadcasterPlaceholder({ guideName = 'Guide', travelerName = 'Tr
   return (
     <View style={styles.video}>
       <View style={styles.videoGlow} />
-      <View style={styles.videoBadge}>
-        <View style={styles.liveDot} />
-        <Text style={styles.videoBadgeText}>BROADCASTING</Text>
-      </View>
-      <View style={styles.networkBadge}>
-        <Ionicons name="cellular" size={14} color={colors.green} />
-        <Text style={styles.networkText}>5G strong</Text>
-      </View>
       <View style={styles.videoCenter}>
         <Ionicons name="videocam" size={40} color={colors.white} />
         <Text style={styles.videoEyebrow}>Guide camera</Text>
         <Text style={styles.videoTitle}>{guideName}</Text>
-        <Text style={styles.videoText}>Mock broadcaster surface for Expo Go. Live video SDK plugs in here.</Text>
+        <Text style={styles.videoText}>{waitingMessage}</Text>
       </View>
       <View style={styles.videoBottom}>
-        <Text style={styles.videoMeta}>Traveler: {travelerName} • English captions</Text>
-        <Text style={styles.videoMeta}>18:42 left</Text>
+        <Text style={styles.videoMeta}>Traveler: {travelerName}</Text>
       </View>
     </View>
   );
@@ -204,11 +195,6 @@ const styles = StyleSheet.create({
   mapLabel: { position: 'absolute', left: 16, bottom: 14, color: colors.blue, fontWeight: '900', backgroundColor: 'rgba(255,255,255,0.86)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden' },
   video: { height: 342, borderRadius: 32, backgroundColor: '#07131D', overflow: 'hidden', position: 'relative' },
   videoGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 145, backgroundColor: '#173D52', opacity: 0.92 },
-  videoBadge: { position: 'absolute', top: 18, left: 18, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF5A57' },
-  videoBadgeText: { color: colors.white, fontWeight: '900', fontSize: 12 },
-  networkBadge: { position: 'absolute', top: 18, right: 18, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  networkText: { color: colors.ink, fontWeight: '900', fontSize: 12 },
   videoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   videoEyebrow: { color: colors.gold, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, marginTop: 10, fontSize: 11 },
   videoTitle: { color: colors.white, fontSize: 24, fontWeight: '900', marginTop: 4 },

@@ -25,6 +25,13 @@ export type GuideBroadcastConnectionProps = {
 
 const IDLE_STATE: GuideBroadcastState = { status: 'idle' };
 
+// TICKET-6: what to tell the guide while no camera picture is available yet.
+export function broadcastWaitingMessage(state: GuideBroadcastState, awaitingPermission: boolean): string {
+  if (awaitingPermission) return 'Waiting for camera and microphone permission. Answer the prompt to start your video.';
+  if (state.status === 'connecting') return 'Starting your camera…';
+  return 'Your camera starts when the walk goes live.';
+}
+
 // Orchestrates the token fetch -> connect -> publish -> cleanup lifecycle for
 // the Guide's LiveKit room, independent of the real SDK so it can be unit
 // tested against a mocked fetchToken. The epoch counter guards against a
