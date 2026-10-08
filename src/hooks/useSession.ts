@@ -339,6 +339,19 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     return () => subscription.remove();
   }, []);
 
+  // TICKET-2 fix: raw AppState 'change' events can fire in a tight flurry on
+  // some Android builds (each one tearing down and resubscribing the GPS
+  // watch below), which is what produced the "Paused / Requesting GPS
+  // permission…" flicker and the crash ~10s in. Debounce the value that
+  // actually drives the GPS effect so a burst of flips collapses into a
+  // single, stable transition once things settle instead of resubscribing
+  // on every flip.
+  const [debouncedAppActive, setDebouncedAppActive] = useState(appActive);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedAppActive(appActive), 400);
+    return () => clearTimeout(timer);
+  }, [appActive]);
+
   useEffect(() => {
     if (activeRequest?.status !== 'live' || !activeRequest.sessionId) {
       if (activeRequest?.status !== 'cancelled') setLocationNote('GPS starts when the live session starts.');
@@ -352,7 +365,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
     // that also needs the foreground), surface it to the guide and force a
     // clean resubscribe when the app comes back, instead of trusting the OS
     // to silently resume the old subscription.
-    if (!appActive) {
+    if (!debouncedAppActive) {
       setLocationNote('Paused - bring LiveWalk to the foreground to keep sharing your camera and GPS.');
       return;
     }
@@ -365,9 +378,16 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
 
     const startPublishing = async () => {
       try {
-        setLocationNote('Requesting GPS permission…');
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.status !== 'granted') {
+        // Permission is very likely already granted (checked once at the
+        // top of a session) - only surface the "Requesting…" message when
+        // we're actually about to prompt, instead of on every resubscribe,
+        // so a granted-permission guide never sees that string flash at all.
+        let status = (await Location.getForegroundPermissionsAsync()).status;
+        if (status !== 'granted') {
+          setLocationNote('Requesting GPS permission…');
+          status = (await Location.requestForegroundPermissionsAsync()).status;
+        }
+        if (status !== 'granted') {
           if (!cancelled) setLocationNote('GPS permission is needed to share live route progress.');
           return;
         }
@@ -412,7 +432,7 @@ export function useSession({ enabled, authReady, authKey, online, screenFocusKey
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeRequest?.id, activeRequest?.sessionId, activeRequest?.status, appActive, markRequestCancelled]);
+  }, [activeRequest?.id, activeRequest?.sessionId, activeRequest?.status, debouncedAppActive, markRequestCancelled]);
 
   return {
     pendingRequests,

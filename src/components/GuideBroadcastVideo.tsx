@@ -10,7 +10,7 @@ import type { GuideBroadcastConnectionProps } from '../session/guideBroadcast';
 
 type FacingMode = 'user' | 'environment';
 
-function LocalCameraPreview({ facingMode }: { facingMode: FacingMode }) {
+function LocalCameraPreview({ facingMode, paused }: { facingMode: FacingMode; paused: boolean }) {
   const { cameraTrack, localParticipant } = useLocalParticipant();
   const trackRef = cameraTrack ? { participant: localParticipant, publication: cameraTrack, source: Track.Source.Camera } : undefined;
   const localVideoTrack = cameraTrack?.track;
@@ -32,11 +32,40 @@ function LocalCameraPreview({ facingMode }: { facingMode: FacingMode }) {
     );
   }, [localVideoTrack]);
 
+  // TICKET-1: the local preview must visibly stop showing live motion while
+  // paused - rendering the placeholder instead of <VideoTrack> here (rather
+  // than just an overlay on top of it) confirms the preview itself isn't
+  // quietly still updating underneath.
+  if (paused) {
+    return (
+      <View style={[styles.video, styles.pausedPreview]}>
+        <Ionicons name="pause-circle" size={36} color="rgba(255,255,255,0.85)" />
+        <Text style={styles.pausedPreviewText}>Camera paused</Text>
+      </View>
+    );
+  }
+
   // zOrder=1 ("media overlay") matches the LiveKit/react-native-webrtc docs'
   // recommendation for the local preview. The default (unset) zOrder has been
   // observed to let the SurfaceView-backed video paint over RN sibling views
   // on some Android devices, hiding the flip button rendered above it.
   return <VideoTrack trackRef={trackRef} style={styles.video} objectFit="cover" mirror={facingMode === 'user'} zOrder={1} />;
+}
+
+// TICKET-1: pausing must stop actual capture/transmission, not just flip a
+// local UI flag - otherwise the guide (and the backend/traveler) can be told
+// "paused" while the camera and mic are still publishing. setCameraEnabled/
+// setMicrophoneEnabled(false) mutes the already-published tracks (per the
+// note in FlipCameraButton, this is a real mute, not just a UI toggle), and
+// re-enabling on resume unmutes the same tracks - no facingMode needed since
+// the underlying capture was never torn down.
+function StreamPauseController({ paused }: { paused: boolean }) {
+  const { localParticipant } = useLocalParticipant();
+  useEffect(() => {
+    void localParticipant.setCameraEnabled(!paused);
+    void localParticipant.setMicrophoneEnabled(!paused);
+  }, [paused, localParticipant]);
+  return null;
 }
 
 function FlipCameraButton({ facingMode, onFlip }: { facingMode: FacingMode; onFlip: () => void }) {
@@ -74,11 +103,13 @@ export function GuideBroadcastVideo({
   guideName,
   travelerName,
   errorMessage,
+  paused = false,
 }: {
   connectionProps: GuideBroadcastConnectionProps;
   guideName: string;
   travelerName: string;
   errorMessage?: string;
+  paused?: boolean;
 }) {
   // Environment (back) camera by default - a walking-tour guide broadcasts
   // their surroundings to the traveler, not a selfie view. The guide can
@@ -137,7 +168,8 @@ export function GuideBroadcastVideo({
         audio={connectionProps.audio}
         onMediaDeviceFailure={handleMediaDeviceFailure}
       >
-        <LocalCameraPreview facingMode={facingMode} />
+        <StreamPauseController paused={paused} />
+        <LocalCameraPreview facingMode={facingMode} paused={paused} />
         <FlipCameraButton facingMode={facingMode} onFlip={() => setFacingMode((current) => current === 'environment' ? 'user' : 'environment')} />
       </LiveKitRoom>
       {mediaError ? (
@@ -152,6 +184,8 @@ export function GuideBroadcastVideo({
 const styles = StyleSheet.create({
   wrapper: { height: 342, borderRadius: 32, overflow: 'hidden', backgroundColor: '#07131D' },
   video: { flex: 1 },
+  pausedPreview: { alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#07131D' },
+  pausedPreviewText: { color: 'rgba(255,255,255,0.85)', fontWeight: '700', fontSize: 13 },
   flipButton: {
     position: 'absolute',
     top: 14,
